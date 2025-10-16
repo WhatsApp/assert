@@ -1,0 +1,13 @@
+-file("assert_match.erl", 1).
+-module(assert_match).
+-export([match/2]).
+match(Pattern, Expr) ->
+    case begin
+             Pins = #{'Pattern' => Pattern},
+             wa_assert:error_info("Pattern", Pins)
+         end
+        of
+        {ok, ErrorInfo} ->
+            erlang:error(reason, none, [{error_info, ErrorInfo}]);
+        {error, no_error_info} -> erlang:error(reason)
+    end.

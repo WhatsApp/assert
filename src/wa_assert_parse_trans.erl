@@ -1,0 +1,174 @@
+%% Copyright (c) Meta Platforms, Inc. and affiliates.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%% % @format
+-module(wa_assert_parse_trans).
+%% erlfmt:ignore
+% @fb-only
+-compile(warn_missing_spec_all).
+
+%% Public API
+-export([parse_transform/2, format_error/1]).
+
+-define(WA_ASSERT, wa_assert).
+
+-define(call(A, M, F, As), {call, A, {remote, A, {atom, A, M}, {atom, A, F}}, As}).
+-define(map_key(A, K, V), {map_field_assoc, A, {atom, A, K}, V}).
+% List from https://www.erlang.org/doc/system/expressions.html#term-comparisons
+-define(COMPARISON_OPERATORS, ['==', '/=', '=<', '<', '>=', '>', '=:=', '=/=']).
+
+-type tree() :: erl_syntax:syntaxTree().
+
+-spec parse_transform([tree()], [term()]) -> [tree()].
+parse_transform(Forms, _Options) ->
+    [transform_form(Form) || Form <- Forms].
+
+-spec transform_form(tree()) -> tree().
+transform_form(Form) ->
+    case erl_syntax:type(Form) of
+        function ->
+            Annotated = erl_syntax_lib:annotate_bindings(Form, ordsets:new()),
+            try
+                erl_syntax:revert(erl_syntax_lib:map(fun transform_expr/1, Annotated))
+            catch
+                {error_marker, Line, Reason} -> {error, {erl_anno:location(Line), ?MODULE, Reason}}
+            end;
+        _ ->
+            Form
+    end.
+
+-spec transform_expr(tree()) -> tree().
+transform_expr(Expr) ->
+    case erl_syntax:type(Expr) of
+        application ->
+            case erl_syntax_lib:analyze_application(Expr) of
+                {?WA_ASSERT, {'$assert_match_error_info$', 1}} ->
+                    Anno = erl_syntax:get_pos(Expr),
+                    case erl_anno:generated(Anno) of
+                        % Do nothing if this code is annoted by generated
+                        % Likely a result of another parse transform
+                        true ->
+                            Expr;
+                        _ ->
+                            process_assert_match_error_info(
+                                erl_syntax:get_pos(Expr), erl_syntax:application_arguments(Expr)
+                            )
+                    end;
+                {?WA_ASSERT, {'$expand_assert$', 1}} ->
+                    Anno = erl_syntax:get_pos(Expr),
+                    case erl_anno:generated(Anno) of
+                        % Do nothing if this code is annoted by generated
+                        % Likely a result of another parse transform
+                        true ->
+                            Expr;
+                        _ ->
+                            process_expand_assert(erl_syntax:application_arguments(Expr))
+                    end;
+                _ ->
+                    Expr
+            end;
+        _ ->
+            Expr
+    end.
+
+-spec process_assert_match_error_info(erl_anno:anno() | erl_anno:location(), [tree()]) -> tuple().
+process_assert_match_error_info(Anno, [Expr0]) ->
+    Pattern0 = extract_pattern(Expr0),
+    PatternStr = {string, Anno, erl_prettypr:format(Pattern0)},
+    Pins = extract_pins(Anno, Pattern0),
+    PinsVar = {var, Anno, 'Pins'},
+    {block, Anno, [
+        {match, Anno, PinsVar, {map, Anno, Pins}},
+        ?call(Anno, ?WA_ASSERT, error_info, [PatternStr, PinsVar])
+    ]}.
+
+-spec process_expand_assert([tree()]) -> tree().
+process_expand_assert([Expr]) ->
+    Pins = extract_pins(0, Expr),
+    case erl_syntax:type(Expr) of
+        infix_expr ->
+            Operator = erl_syntax:infix_expr_operator(Expr),
+            case lists:member(erl_syntax:operator_name(Operator), ?COMPARISON_OPERATORS) of
+                true ->
+                    Left = erl_syntax:infix_expr_left(Expr),
+                    Right = erl_syntax:infix_expr_right(Expr),
+                    LeftVar = erl_syntax:variable('Left__Left'),
+                    RightVar = erl_syntax:variable('Right__Right'),
+                    erl_syntax:block_expr([
+                        erl_syntax:match_expr(LeftVar, Left),
+                        erl_syntax:match_expr(RightVar, Right),
+                        erl_syntax:map_expr([
+                            erl_syntax:map_field_assoc(
+                                erl_syntax:atom(bool_expr), erl_syntax:infix_expr(LeftVar, Operator, RightVar)
+                            ),
+                            erl_syntax:map_field_assoc(
+                                erl_syntax:atom(meta),
+                                erl_syntax:map_expr([
+                                    erl_syntax:map_field_assoc(erl_syntax:atom(type), erl_syntax:atom(comparison)),
+                                    erl_syntax:map_field_assoc(erl_syntax:atom(pins), erl_syntax:map_expr(Pins)),
+                                    erl_syntax:map_field_assoc(erl_syntax:atom(left), LeftVar),
+                                    erl_syntax:map_field_assoc(erl_syntax:atom(right), RightVar),
+                                    erl_syntax:map_field_assoc(
+                                        erl_syntax:atom(operator), erl_syntax:atom(erl_syntax:operator_name(Operator))
+                                    )
+                                ])
+                            )
+                        ])
+                    ]);
+                false ->
+                    default_expansion(Expr, Pins)
+            end;
+        _ ->
+            default_expansion(Expr, Pins)
+    end.
+
+-spec default_expansion(tree(), [tree()]) -> tree().
+default_expansion(Expr, Pins) ->
+    erl_syntax:map_expr([
+        erl_syntax:map_field_assoc(
+            erl_syntax:atom(bool_expr), Expr
+        ),
+        erl_syntax:map_field_assoc(
+            erl_syntax:atom(meta),
+            erl_syntax:map_expr([
+                erl_syntax:map_field_assoc(erl_syntax:atom(type), erl_syntax:atom(generic)),
+                erl_syntax:map_field_assoc(erl_syntax:atom(pins), erl_syntax:map_expr(Pins))
+            ])
+        )
+    ]).
+
+-spec extract_pins(erl_anno:anno() | erl_anno:location(), tree()) -> [tree()].
+extract_pins(Anno, Expr) ->
+    Attrs = erl_syntax:get_ann(Expr),
+    pins(Anno, Attrs).
+
+-spec extract_pattern(tree()) -> tree().
+extract_pattern(Expr) ->
+    case erl_syntax:type(Expr) of
+        case_expr ->
+            [Clause] = erl_syntax:case_expr_clauses(Expr),
+            [Pattern] = erl_syntax:clause_patterns(Clause),
+            Pattern;
+        _ ->
+            throw(erl_syntax:error_marker({assert_match, Expr}))
+    end.
+
+-spec pins(erl_anno:anno() | erl_anno:location(), dynamic()) -> [tuple()].
+pins(Anno, Attrs) ->
+    {free, Free} = lists:keyfind(free, 1, Attrs),
+    {env, Env} = lists:keyfind(env, 1, Attrs),
+    [?map_key(Anno, Name, {var, Anno, Name}) || Name <- Free, lists:member(Name, Env)].
+
+-spec format_error(erl_lint:error_info()) -> io_lib:chars().
+format_error(E) ->
+    io_lib:format("~p", [E]).

@@ -1,0 +1,51 @@
+name: CI
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            otp-version: 27
+            rebar3-version: 3.24.0
+          - os: macos-latest
+            otp-version: 27
+            rebar3-version: 3.24.0
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp-version}}
+          rebar3-version: ${{matrix.rebar3-version}}
+      - name: Cache Hex packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3/hex/hexpm/packages
+          key: ${{ runner.os }}-hex-${{ hashFiles(format('{0}{1}', github.workspace, '/rebar.lock')) }}
+          restore-keys: |
+            ${{ runner.os }}-hex-
+      - name: Compile
+        run: rebar3 compile
+      - name: Test
+        run: rebar3 ct
+      - name: Format
+        run: rebar3 fmt --check
+      - name: XRef
+        run: rebar3 xref
+      - name: Cache Dialyzer PLTs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3/rebar3_*.plt
+          key: ${{ runner.os }}-dialyzer-${{ hashFiles(format('{0}{1}', github.workspace, '/rebar.config')) }}
+          restore-keys: |
+            ${{ runner.os }}-dialyzer-
+      - name: Dialyzer
+        run: rebar3 dialyzer

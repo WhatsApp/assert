@@ -1,0 +1,13 @@
+-file("expand_assert.erl", 1).
+-module(expand_assert).
+-export([expand_assert/1]).
+expand_assert(X) ->
+    begin
+        Left__Left = X,
+        Right__Right = 42,
+        #{bool_expr => Left__Left > Right__Right,
+          meta =>
+              #{type => comparison, pins => #{'X' => X},
+                left => Left__Left, right => Right__Right,
+                operator => '>'}}
+    end.
