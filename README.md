@@ -149,12 +149,14 @@ To add `assert` to your rebar3 project, simply add it to the `deps` in your `reb
 
 `assert` requires Erlang/OTP 26.
 
-## Join the assert community
-See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
-
-## Release Process
-
-The [release process](./RELEASE.md) requires a few steps, updating the [CHANGELOG.md](./CHANGELOG.md), releasing to [hex](https://hex.pm/packages/erlfmt) and more.
-
 ## License
 `assert` is Apache 2.0 licensed, as found in the [LICENSE](LICENSE.md) file.
+
+## References
+
+* [Terms of Use](https://opensource.fb.com/legal/terms)
+* [Privacy Policy](https://opensource.fb.com/legal/privacy)
+
+## Copyright
+
+Copyright © Meta Platforms, Inc
