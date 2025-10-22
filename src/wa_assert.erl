@@ -44,7 +44,7 @@ assert_error_info(Expression, #{type := generic} = Meta) ->
 assert_error_info(_Expression, _Meta) ->
     {error, no_error_info}.
 
--spec error_info(binary(), pins()) -> {ok, error_info(match_cause())}.
+-spec error_info(string(), pins()) -> {ok, error_info(match_cause())}.
 error_info(Pattern, Pins) ->
     Cause = #{pins => Pins, pattern => Pattern},
     {ok, #{module => ?MODULE, function => format_error, cause => Cause}}.
