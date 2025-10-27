@@ -500,9 +500,9 @@ format_function_clause_reason(BlameInfo, M, F, A, Args) ->
 -spec format_badmatch_reason(string(), term()) -> string().
 format_badmatch_reason(BlameInfo, Value) ->
     Format =
-        "~n~nMatch failed:~n~n"
+        "~n~nMatch failed. Pattern:~n~n"
         "~ts~n~n"
-        "For the provided input:~n~n"
+        "Did not match the provided value:~n~n"
         "~p~n~n",
     lists:flatten(io_lib:format(Format, [BlameInfo, Value])).
 
