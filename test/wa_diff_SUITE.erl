@@ -15,7 +15,7 @@
 -module(wa_diff_SUITE).
 -typing([eqwalizer]).
 %% erlfmt:ignore
-% @fb-only
+% @fb-only: -oncall("whatsapp_server_devx").
 
 -include("assert.hrl").
 

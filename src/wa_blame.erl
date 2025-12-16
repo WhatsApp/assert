@@ -14,7 +14,7 @@
 %% % @format
 -module(wa_blame).
 %% erlfmt:ignore
-% @fb-only
+% @fb-only: -oncall("whatsapp_server_devx").
 -compile(warn_missing_spec_all).
 
 -include_lib("kernel/include/logger.hrl").
