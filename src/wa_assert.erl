@@ -14,7 +14,7 @@
 %% % @format
 -module(wa_assert).
 %% erlfmt:ignore
-% @fb-only
+% @fb-only: -oncall("whatsapp_server_devx").
 -compile(warn_missing_spec_all).
 
 -export([error_info/2, assert_error_info/2, format_error/2, format_comparison_error/2, format_generic_error/2]).
