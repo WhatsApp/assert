@@ -13,7 +13,6 @@
 %% limitations under the License.
 %% % @format
 -module(wa_diff_SUITE).
--typing([eqwalizer]).
 %% erlfmt:ignore
 % @fb-only: -oncall("whatsapp_server_devx").
 

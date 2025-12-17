@@ -14,7 +14,6 @@
 %% % @format
 
 -module(wa_assert_parse_trans_SUITE).
--typing([eqwalizer]).
 %% erlfmt:ignore
 % @fb-only: -oncall("whatsapp_server_devx").
 
