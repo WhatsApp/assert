@@ -16,7 +16,6 @@
     {description, "Better Assertions for Erlang"},
     {vsn, git},
     {modules, []},
-    {registered, []},
     {applications, [
         kernel,
         stdlib,
