@@ -222,4 +222,168 @@ end).
     ?assertEqual(lists:sort(ExpectedList), lists:sort(ActualList), Comment)
 ).
 
+%%% -------------------------------------------------------------------
+%%% Comparison Assertions
+%%%
+%%% These macros provide meaningful assertion failures for numeric comparisons.
+%%% Instead of "expected true, got false", failures show the actual values
+%%% and the comparison that failed.
+%%% -------------------------------------------------------------------
+
+%% @doc Assert that Value is less than Threshold.
+%% Example: ?assertLessThan(ErrorCount, FailoverLimit)
+-define(assertLessThan(Value, Threshold),
+    ?assert(
+        (Value) < (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "expected value < threshold, got value ~p, threshold ~p",
+                [(Value), (Threshold)]
+            )
+        )
+    )
+).
+
+-define(assertLessThan(Value, Threshold, Comment),
+    ?assert(
+        (Value) < (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "~s: expected value < threshold, got value ~p, threshold ~p",
+                [(Comment), (Value), (Threshold)]
+            )
+        )
+    )
+).
+
+%% @doc Assert that Value is less than or equal to Threshold.
+%% Example: ?assertLessThanOrEqual(Size, MaxSize)
+-define(assertLessThanOrEqual(Value, Threshold),
+    ?assert(
+        (Value) =< (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "expected value =< threshold, got value ~p, threshold ~p",
+                [(Value), (Threshold)]
+            )
+        )
+    )
+).
+
+-define(assertLessThanOrEqual(Value, Threshold, Comment),
+    ?assert(
+        (Value) =< (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "~s: expected value =< threshold, got value ~p, threshold ~p",
+                [(Comment), (Value), (Threshold)]
+            )
+        )
+    )
+).
+
+%% @doc Assert that Value is greater than Threshold.
+%% Example: ?assertGreaterThan(length(List), 0)
+-define(assertGreaterThan(Value, Threshold),
+    ?assert(
+        (Value) > (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "expected value > threshold, got value ~p, threshold ~p",
+                [(Value), (Threshold)]
+            )
+        )
+    )
+).
+
+-define(assertGreaterThan(Value, Threshold, Comment),
+    ?assert(
+        (Value) > (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "~s: expected value > threshold, got value ~p, threshold ~p",
+                [(Comment), (Value), (Threshold)]
+            )
+        )
+    )
+).
+
+%% @doc Assert that Value is greater than or equal to Threshold.
+%% Example: ?assertGreaterThanOrEqual(Balance, 0)
+-define(assertGreaterThanOrEqual(Value, Threshold),
+    ?assert(
+        (Value) >= (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "expected value >= threshold, got value ~p, threshold ~p",
+                [(Value), (Threshold)]
+            )
+        )
+    )
+).
+
+-define(assertGreaterThanOrEqual(Value, Threshold, Comment),
+    ?assert(
+        (Value) >= (Threshold),
+        lists:flatten(
+            io_lib:format(
+                "~s: expected value >= threshold, got value ~p, threshold ~p",
+                [(Comment), (Value), (Threshold)]
+            )
+        )
+    )
+).
+
+%% @doc Assert that Value is within the range [Min, Max] (inclusive).
+%% Example: ?assertInRange(Percentage, 0, 100)
+-define(assertInRange(Value, Min, Max),
+    ?assert(
+        (Value) >= (Min) andalso (Value) =< (Max),
+        lists:flatten(
+            io_lib:format(
+                "expected ~p =< value =< ~p, got value ~p",
+                [(Min), (Max), (Value)]
+            )
+        )
+    )
+).
+
+-define(assertInRange(Value, Min, Max, Comment),
+    ?assert(
+        (Value) >= (Min) andalso (Value) =< (Max),
+        lists:flatten(
+            io_lib:format(
+                "~s: expected ~p =< value =< ~p, got value ~p",
+                [(Comment), (Min), (Max), (Value)]
+            )
+        )
+    )
+).
+
+%% @doc Assert that Actual is within Delta of Expected (for floating point comparisons).
+%% Example: ?assertEqualWithDelta(3.14159, calculate_pi(), 0.001)
+-define(assertEqualWithDelta(Expected, Actual, Delta),
+    ?assert(
+        abs((Actual) - (Expected)) =< (Delta),
+        lists:flatten(
+            io_lib:format(
+                "expected |actual - expected| =< delta, got expected ~p, actual ~p, delta ~p",
+                [(Expected), (Actual), (Delta)]
+            )
+        )
+    )
+).
+
+-define(assertEqualWithDelta(Expected, Actual, Delta, Comment),
+    ?assert(
+        abs((Actual) - (Expected)) =< (Delta),
+        lists:flatten(
+            io_lib:format(
+                "~s: expected |actual - expected| =< delta, got expected ~p, actual ~p, delta ~p",
+                [(Comment), (Expected), (Actual), (Delta)]
+            )
+        )
+    )
+).
+
 -endif.

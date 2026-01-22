@@ -30,7 +30,13 @@
     assert_match/1,
     assert_comparison/1,
     assert_map_comprehension/1,
-    assert_call_with_bindings/1
+    assert_call_with_bindings/1,
+    assert_greater_than/1,
+    assert_less_than/1,
+    assert_greater_than_or_equal/1,
+    assert_less_than_or_equal/1,
+    assert_in_range/1,
+    assert_equal_with_delta/1
 ]).
 
 all() ->
@@ -40,7 +46,13 @@ all() ->
         assert_match,
         assert_comparison,
         assert_map_comprehension,
-        assert_call_with_bindings
+        assert_call_with_bindings,
+        assert_less_than,
+        assert_less_than_or_equal,
+        assert_greater_than,
+        assert_greater_than_or_equal,
+        assert_in_range,
+        assert_equal_with_delta
     ].
 
 %%--------------------------------------------------------------------
@@ -87,3 +99,137 @@ actual(X) -> X.
 
 actual_list() -> [1, 2, 3, 4, 5].
 expected_list() -> [1, 5, 3, 2, 4].
+
+%%--------------------------------------------------------------------
+%% Comparison Assertion Tests
+%%
+%% Should be able to compare:
+%% - Timestamps (large integers)
+%% - Counts (small non-negative integers)
+%% - Percentages
+%% - Floats (for delta comparisons)
+%% - Negative numbers (for some range checks)
+%%--------------------------------------------------------------------
+
+assert_less_than(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertLessThan(5, 10),
+    ok = ?assertLessThan(0, 100),
+    %% Counts (eg: queue sizes, error counts)
+    QueueSize = 50,
+    MaxQueue = 100,
+    ok = ?assertLessThan(QueueSize, MaxQueue),
+    %% Negative numbers
+    ok = ?assertLessThan(-10, -5),
+    %% Floats
+    ok = ?assertLessThan(1.0, 1.5),
+    ok = ?assertLessThan(0.0, 0.001),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertLessThan(10, 5)),
+    ?assertException(error, {assert, _}, ?assertLessThan(10, 10)),
+    %% With comment
+    ok = ?assertLessThan(5, 10, "should be less").
+
+assert_less_than_or_equal(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertLessThanOrEqual(5, 10),
+    ok = ?assertLessThanOrEqual(10, 10),
+    %% Counts (eg: capacity used =< max)
+    Used = 80,
+    Max = 100,
+    ok = ?assertLessThanOrEqual(Used, Max),
+    %% Negative numbers
+    ok = ?assertLessThanOrEqual(-10, -5),
+    ok = ?assertLessThanOrEqual(-5, -5),
+    %% Floats
+    ok = ?assertLessThanOrEqual(1.5, 1.5),
+    ok = ?assertLessThanOrEqual(1.4, 1.5),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertLessThanOrEqual(10, 5)),
+    ?assertException(error, {assert, _}, ?assertLessThanOrEqual(101, 100)),
+    %% With comment
+    ok = ?assertLessThanOrEqual(10, 10, "should not exceed threshold").
+
+assert_greater_than(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertGreaterThan(10, 5),
+    ok = ?assertGreaterThan(100, 0),
+    %% Timestamp comparisons
+    Ts1 = 1737471235,
+    Ts2 = 1737471234,
+    ok = ?assertGreaterThan(Ts1, Ts2),
+    %% Negative numbers
+    ok = ?assertGreaterThan(-5, -10),
+    %% Floats
+    ok = ?assertGreaterThan(1.5, 1.0),
+    ok = ?assertGreaterThan(0.001, 0.0),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertGreaterThan(5, 10)),
+    ?assertException(error, {assert, _}, ?assertGreaterThan(10, 10)),
+    ?assertException(error, {assert, _}, ?assertGreaterThan(Ts2, Ts2)),
+    %% With comment
+    ok = ?assertGreaterThan(10, 5, "should be greater").
+
+assert_greater_than_or_equal(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertGreaterThanOrEqual(10, 5),
+    ok = ?assertGreaterThanOrEqual(10, 10),
+    %% Zero checks (eg: balance >= 0)
+    Balance = 100,
+    ok = ?assertGreaterThanOrEqual(Balance, 0),
+    ok = ?assertGreaterThanOrEqual(0, 0),
+    %% Negative numbers
+    ok = ?assertGreaterThanOrEqual(-5, -10),
+    ok = ?assertGreaterThanOrEqual(-5, -5),
+    %% Floats
+    ok = ?assertGreaterThanOrEqual(1.5, 1.5),
+    ok = ?assertGreaterThanOrEqual(1.6, 1.5),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertGreaterThanOrEqual(5, 10)),
+    ?assertException(error, {assert, _}, ?assertGreaterThanOrEqual(-1, 0)),
+    %% With comment
+    ok = ?assertGreaterThanOrEqual(10, 10, "should be at least threshold").
+
+assert_in_range(_Config) ->
+    %% Percentage range (0-100)
+    Percentage = 75,
+    ok = ?assertInRange(Percentage, 0, 100),
+    ok = ?assertInRange(0, 0, 100),
+    ok = ?assertInRange(100, 0, 100),
+    %% HTTP status codes
+    ok = ?assertInRange(200, 200, 299),
+    ok = ?assertInRange(404, 400, 499),
+    %% Negative ranges
+    ok = ?assertInRange(-5, -10, 0),
+    ok = ?assertInRange(-10, -10, -5),
+    %% Floats
+    ok = ?assertInRange(1.5, 1.0, 2.0),
+    ok = ?assertInRange(0.5, 0.0, 1.0),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertInRange(-1, 0, 100)),
+    ?assertException(error, {assert, _}, ?assertInRange(101, 0, 100)),
+    ?assertException(error, {assert, _}, ?assertInRange(199, 200, 299)),
+    %% With comment
+    ok = ?assertInRange(50, 0, 100, "percentage must be valid").
+
+assert_equal_with_delta(_Config) ->
+    %% Float comparisons with tolerance
+    ok = ?assertEqualWithDelta(3.14159, 3.14, 0.01),
+    ok = ?assertEqualWithDelta(3.14159, 3.141, 0.001),
+    %% Integer approximations
+    ok = ?assertEqualWithDelta(100, 100.5, 1),
+    ok = ?assertEqualWithDelta(100, 99, 1),
+    %% Zero handling
+    ok = ?assertEqualWithDelta(0.0, 0.0, 0.001),
+    ok = ?assertEqualWithDelta(0.0, 0.0001, 0.001),
+    %% Negative values
+    ok = ?assertEqualWithDelta(-5.0, -5.1, 0.2),
+    ok = ?assertEqualWithDelta(-100, -99, 2),
+    %% Large values with delta
+    ok = ?assertEqualWithDelta(1000000, 1000001, 10),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertEqualWithDelta(3.14159, 3.0, 0.01)),
+    ?assertException(error, {assert, _}, ?assertEqualWithDelta(100, 102, 1)),
+    ?assertException(error, {assert, _}, ?assertEqualWithDelta(0.0, 0.1, 0.01)),
+    %% With comment
+    ok = ?assertEqualWithDelta(3.14, 3.14159, 0.01, "pi approximation").
