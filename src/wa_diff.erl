@@ -163,22 +163,22 @@ format_error(Reason, [{_M, _F, _Args, Info} | _]) ->
 -spec diff_value(supported_input(), supported_input(), context()) -> diff().
 diff_value(Same, Same, _Context) ->
     #{equivalent => true, left => Same, right => Same};
-diff_value(Left, Right, _Context) when is_number(Left) andalso is_number(Right) ->
+diff_value(Left, Right, _Context) when is_number(Left), is_number(Right) ->
     diff_literal(Left, Right);
-diff_value(Left, Right, _Context) when is_atom(Left) andalso is_atom(Right) ->
+diff_value(Left, Right, _Context) when is_atom(Left), is_atom(Right) ->
     diff_literal(Left, Right);
-diff_value(Left, Right, Context) when is_tuple(Left) andalso is_tuple(Right) ->
+diff_value(Left, Right, Context) when is_tuple(Left), is_tuple(Right) ->
     diff_tuple(tuple_to_list(Left), tuple_to_list(Right), Context);
-diff_value(Left, Right, Context) when is_map(Left) andalso is_map(Right) ->
+diff_value(Left, Right, Context) when is_map(Left), is_map(Right) ->
     diff_struct(map, Left, Right, Context);
-diff_value(Left, Right, Context) when is_list(Left) andalso is_list(Right) ->
+diff_value(Left, Right, Context) when is_list(Left), is_list(Right) ->
     case io_lib:printable_unicode_list(Left) andalso io_lib:printable_unicode_list(Right) of
         true ->
             diff_string(inspect_string(Left), inspect_string(Right));
         false ->
             diff_container(list, Left, Right, Context)
     end;
-diff_value(Left, Right, _Context) when is_binary(Left) andalso is_binary(Right) ->
+diff_value(Left, Right, _Context) when is_binary(Left), is_binary(Right) ->
     case is_printable(Left) andalso is_printable(Right) of
         true ->
             diff_string(inspect_binary(Left), inspect_binary(Right));
