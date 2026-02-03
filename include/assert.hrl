@@ -222,4 +222,89 @@ end).
     ?assertEqual(lists:sort(ExpectedList), lists:sort(ActualList), Comment)
 ).
 
+%%--------------------------------------------------------------------
+%% Numeric Comparison Assertion Macros
+%%
+%% These macros wrap common comparison patterns, for discoverability,
+%% clear intent, and readability. They delegate to ?assert to preserve
+%% its enhanced error messages.
+%%--------------------------------------------------------------------
+
+%% Asserts that Value is strictly greater than Threshold.
+%% Example: ?assertGreaterThan(Count, 0)
+-define(assertGreaterThan(Value, Threshold),
+    ?assert(Value > Threshold)
+).
+-define(assertGreaterThan(Value, Threshold, Comment),
+    ?assert(Value > Threshold, Comment)
+).
+
+%% Asserts that Value is strictly less than Threshold.
+%% Example: ?assertLessThan(Age, 100)
+-define(assertLessThan(Value, Threshold),
+    ?assert(Value < Threshold)
+).
+-define(assertLessThan(Value, Threshold, Comment),
+    ?assert(Value < Threshold, Comment)
+).
+
+%% Asserts that Value is greater than or equal to Threshold.
+%% Example: ?assertGreaterThanOrEqual(Balance, 0)
+-define(assertGreaterThanOrEqual(Value, Threshold),
+    ?assert(Value >= Threshold)
+).
+-define(assertGreaterThanOrEqual(Value, Threshold, Comment),
+    ?assert(Value >= Threshold, Comment)
+).
+
+%% Asserts that Value is less than or equal to Threshold.
+%% Example: ?assertLessThanOrEqual(ErrorRate, 0.01)
+-define(assertLessThanOrEqual(Value, Threshold),
+    ?assert(Value =< Threshold)
+).
+-define(assertLessThanOrEqual(Value, Threshold, Comment),
+    ?assert(Value =< Threshold, Comment)
+).
+
+%% Asserts that Value is within the inclusive range [Min, Max].
+%%
+%% Note: Value is evaluated twice due to the andalso expression.
+%% For expensive computations or side-effecting expressions, bind to a
+%% variable first: V = expensive_call(), ?assertInRangeInclusive(V, 0, 100)
+%%
+%% Example: ?assertInRangeInclusive(Port, 1, 65535)
+-define(assertInRangeInclusive(Value, Min, Max),
+    ?assert(Value >= Min andalso Value =< Max)
+).
+-define(assertInRangeInclusive(Value, Min, Max, Comment),
+    ?assert(Value >= Min andalso Value =< Max, Comment)
+).
+
+%% Asserts that Value is within the exclusive range (Min, Max).
+%%
+%% Note: Value is evaluated twice due to the andalso expression.
+%% For expensive computations or side-effecting expressions, bind to a
+%% variable first: V = expensive_call(), ?assertInRangeExclusive(V, 0, 100)
+%%
+%% Example: ?assertInRangeExclusive(Value, floor(Size * 0.15), ceil(Size * 0.35))
+-define(assertInRangeExclusive(Value, Min, Max),
+    ?assert(Value > Min andalso Value < Max)
+).
+-define(assertInRangeExclusive(Value, Min, Max, Comment),
+    ?assert(Value > Min andalso Value < Max, Comment)
+).
+
+%% Asserts that Expected and Actual are within Delta of each other.
+%% Useful for floating-point comparisons or approximate equality checks.
+%% Example: ?assertEqualWithDelta(3.141, calculate_pi(), 0.001)
+%%
+%% Note: Parentheses around Expected and Actual are required to handle
+%% expressions like ?assertEqualWithDelta(A, B - C, D) correctly.
+-define(assertEqualWithDelta(Expected, Actual, Delta),
+    ?assert(erlang:abs((Expected) - (Actual)) =< Delta)
+).
+-define(assertEqualWithDelta(Expected, Actual, Delta, Comment),
+    ?assert(erlang:abs((Expected) - (Actual)) =< Delta, Comment)
+).
+
 -endif.

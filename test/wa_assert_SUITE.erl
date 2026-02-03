@@ -30,7 +30,15 @@
     assert_match/1,
     assert_comparison/1,
     assert_map_comprehension/1,
-    assert_call_with_bindings/1
+    assert_call_with_bindings/1,
+    assert_greater_than/1,
+    assert_less_than/1,
+    assert_greater_than_or_equal/1,
+    assert_less_than_or_equal/1,
+    assert_in_range_inclusive/1,
+    assert_in_range_exclusive/1,
+    assert_equal_with_delta/1,
+    assert_comparison_macros_preserve_error_info/1
 ]).
 
 all() ->
@@ -40,7 +48,15 @@ all() ->
         assert_match,
         assert_comparison,
         assert_map_comprehension,
-        assert_call_with_bindings
+        assert_call_with_bindings,
+        assert_greater_than,
+        assert_less_than,
+        assert_greater_than_or_equal,
+        assert_less_than_or_equal,
+        assert_in_range_inclusive,
+        assert_in_range_exclusive,
+        assert_equal_with_delta,
+        assert_comparison_macros_preserve_error_info
     ].
 
 %%--------------------------------------------------------------------
@@ -76,6 +92,180 @@ assert_map_comprehension(_Config) ->
 assert_call_with_bindings(_Config) ->
     Expected = expected(),
     ?assertException(error, {assert, _}, ?assert(lists:member(Expected, [actual()]))).
+
+%%--------------------------------------------------------------------
+%% Comparison Assertion Tests
+%%
+%% Should be able to compare:
+%% - Timestamps (large integers)
+%% - Counts (small non-negative integers)
+%% - Percentages and floats
+%% - Negative numbers
+%%--------------------------------------------------------------------
+
+assert_greater_than(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertGreaterThan(10, 5),
+    ok = ?assertGreaterThan(100, 0),
+    %% Timestamp comparisons (large integers)
+    Ts1 = 1737471235,
+    Ts2 = 1737471234,
+    ok = ?assertGreaterThan(Ts1, Ts2),
+    %% Negative numbers
+    ok = ?assertGreaterThan(-5, -10),
+    %% Floats
+    ok = ?assertGreaterThan(1.5, 1.0),
+    ok = ?assertGreaterThan(0.001, 0.0),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertGreaterThan(5, 10)),
+    ?assertException(error, {assert, _}, ?assertGreaterThan(10, 10)),
+    %% With comment
+    ok = ?assertGreaterThan(10, 5, "should be greater").
+
+assert_less_than(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertLessThan(5, 10),
+    ok = ?assertLessThan(0, 100),
+    %% Queue sizes, error counts
+    QueueSize = 50,
+    MaxQueue = 100,
+    ok = ?assertLessThan(QueueSize, MaxQueue),
+    %% Negative numbers
+    ok = ?assertLessThan(-10, -5),
+    %% Floats
+    ok = ?assertLessThan(1.0, 1.5),
+    ok = ?assertLessThan(0.0, 0.001),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertLessThan(10, 5)),
+    ?assertException(error, {assert, _}, ?assertLessThan(10, 10)),
+    %% With comment
+    ok = ?assertLessThan(5, 10, "should be less").
+
+assert_greater_than_or_equal(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertGreaterThanOrEqual(10, 5),
+    ok = ?assertGreaterThanOrEqual(10, 10),
+    %% Zero checks (balance >= 0)
+    Balance = 100,
+    ok = ?assertGreaterThanOrEqual(Balance, 0),
+    ok = ?assertGreaterThanOrEqual(0, 0),
+    %% Negative numbers
+    ok = ?assertGreaterThanOrEqual(-5, -10),
+    ok = ?assertGreaterThanOrEqual(-5, -5),
+    %% Floats
+    ok = ?assertGreaterThanOrEqual(1.5, 1.5),
+    ok = ?assertGreaterThanOrEqual(1.6, 1.5),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertGreaterThanOrEqual(5, 10)),
+    ?assertException(error, {assert, _}, ?assertGreaterThanOrEqual(-1, 0)),
+    %% With comment
+    ok = ?assertGreaterThanOrEqual(10, 10, "should be at least threshold").
+
+assert_less_than_or_equal(_Config) ->
+    %% Basic integer comparisons
+    ok = ?assertLessThanOrEqual(5, 10),
+    ok = ?assertLessThanOrEqual(10, 10),
+    %% Capacity checks (used =< max)
+    Used = 80,
+    Max = 100,
+    ok = ?assertLessThanOrEqual(Used, Max),
+    %% Negative numbers
+    ok = ?assertLessThanOrEqual(-10, -5),
+    ok = ?assertLessThanOrEqual(-5, -5),
+    %% Floats
+    ok = ?assertLessThanOrEqual(1.5, 1.5),
+    ok = ?assertLessThanOrEqual(1.4, 1.5),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertLessThanOrEqual(10, 5)),
+    ?assertException(error, {assert, _}, ?assertLessThanOrEqual(101, 100)),
+    %% With comment
+    ok = ?assertLessThanOrEqual(10, 10, "should not exceed threshold").
+
+assert_in_range_inclusive(_Config) ->
+    %% Percentage range (0-100)
+    Percentage = 75,
+    ok = ?assertInRangeInclusive(Percentage, 0, 100),
+    ok = ?assertInRangeInclusive(0, 0, 100),
+    ok = ?assertInRangeInclusive(100, 0, 100),
+    %% HTTP status codes
+    ok = ?assertInRangeInclusive(200, 200, 299),
+    ok = ?assertInRangeInclusive(404, 400, 499),
+    %% Negative ranges
+    ok = ?assertInRangeInclusive(-5, -10, 0),
+    ok = ?assertInRangeInclusive(-10, -10, -5),
+    %% Floats
+    ok = ?assertInRangeInclusive(1.5, 1.0, 2.0),
+    ok = ?assertInRangeInclusive(0.5, 0.0, 1.0),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertInRangeInclusive(-1, 0, 100)),
+    ?assertException(error, {assert, _}, ?assertInRangeInclusive(101, 0, 100)),
+    ?assertException(error, {assert, _}, ?assertInRangeInclusive(199, 200, 299)),
+    %% With comment
+    ok = ?assertInRangeInclusive(50, 0, 100, "percentage must be valid").
+
+assert_in_range_exclusive(_Config) ->
+    ok = ?assertInRangeExclusive(2, 1, 3),
+    ok = ?assertInRangeExclusive(50, 0, 100),
+    %% Floats
+    ok = ?assertInRangeExclusive(1.5, 1.0, 2.0),
+    ok = ?assertInRangeExclusive(0.5, 0.0, 1.0),
+    %% Computed bounds
+    Size = 1000,
+    Value = 250,
+    ok = ?assertInRangeExclusive(Value, floor(Size * 0.15), ceil(Size * 0.35)),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertInRangeExclusive(1, 1, 3)),
+    ?assertException(error, {assert, _}, ?assertInRangeExclusive(3, 1, 3)),
+    ?assertException(error, {assert, _}, ?assertInRangeExclusive(0, 0, 100)),
+    ?assertException(error, {assert, _}, ?assertInRangeExclusive(100, 0, 100)),
+    %% With comment
+    ok = ?assertInRangeExclusive(50, 0, 100, "value must be strictly between bounds").
+
+assert_equal_with_delta(_Config) ->
+    %% Float comparisons with tolerance
+    ok = ?assertEqualWithDelta(3.14159, 3.14, 0.01),
+    ok = ?assertEqualWithDelta(3.14159, 3.141, 0.001),
+    %% Integer approximations
+    ok = ?assertEqualWithDelta(100, 100.5, 1),
+    ok = ?assertEqualWithDelta(100, 99, 1),
+    %% Zero handling
+    ok = ?assertEqualWithDelta(0.0, 0.0, 0.001),
+    ok = ?assertEqualWithDelta(0.0, 0.0001, 0.001),
+    %% Negative values
+    ok = ?assertEqualWithDelta(-5.0, -5.1, 0.2),
+    ok = ?assertEqualWithDelta(-100, -99, 2),
+    %% Large values with delta
+    ok = ?assertEqualWithDelta(1000000, 1000001, 10),
+    %% Arithmetic expressions as arguments - parentheses in macro ensure
+    %% correct evaluation, e.g. abs((10) - (15 - 3)) = abs(10 - 12) = 2, not abs(10 - 15 - 3) = 8
+    ok = ?assertEqualWithDelta(10, 15 - 3, 3),
+    ok = ?assertEqualWithDelta(20 + 5, 30 - 3, 5),
+    %% Failure cases
+    ?assertException(error, {assert, _}, ?assertEqualWithDelta(3.14159, 3.0, 0.01)),
+    ?assertException(error, {assert, _}, ?assertEqualWithDelta(100, 102, 1)),
+    ?assertException(error, {assert, _}, ?assertEqualWithDelta(0.0, 0.1, 0.01)),
+    %% With comment
+    ok = ?assertEqualWithDelta(3.14, 3.14159, 0.01, "pi approximation").
+
+assert_comparison_macros_preserve_error_info(_Config) ->
+    %% Verify that comparison macros preserve the parse transform's
+    %% enhanced error output (the "Because:" clause).
+    %% The error_info must use format_comparison_error which generates
+    %% the "Because: X > Y" output showing evaluated values.
+    X = 5,
+    Y = 10,
+    try
+        ?assertGreaterThan(X, Y)
+    catch
+        error:{assert, _}:Stacktrace ->
+            [{_M, _F, _Args, Info} | _] = Stacktrace,
+            ErrorInfo = proplists:get_value(error_info, Info),
+            %% Verify error_info exists and uses comparison format
+            #{cause := Cause, module := wa_assert, function := format_comparison_error} = ErrorInfo,
+            %% Verify comparison metadata is present (left, right, operator)
+            #{left := 5, right := 10, operator := '>'} = Cause,
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Internal Helpers
