@@ -100,52 +100,47 @@ process_expand_assert([Expr]) ->
             Operator = erl_syntax:infix_expr_operator(Expr),
             case lists:member(erl_syntax:operator_name(Operator), ?COMPARISON_OPERATORS) of
                 true ->
-                    Left = erl_syntax:infix_expr_left(Expr),
-                    Right = erl_syntax:infix_expr_right(Expr),
-                    LeftVar = erl_syntax:variable('Left__Left'),
-                    RightVar = erl_syntax:variable('Right__Right'),
-                    erl_syntax:block_expr([
-                        erl_syntax:match_expr(LeftVar, Left),
-                        erl_syntax:match_expr(RightVar, Right),
-                        erl_syntax:map_expr([
-                            erl_syntax:map_field_assoc(
-                                erl_syntax:atom(bool_expr), erl_syntax:infix_expr(LeftVar, Operator, RightVar)
-                            ),
-                            erl_syntax:map_field_assoc(
-                                erl_syntax:atom(meta),
-                                erl_syntax:map_expr([
-                                    erl_syntax:map_field_assoc(erl_syntax:atom(type), erl_syntax:atom(comparison)),
-                                    erl_syntax:map_field_assoc(erl_syntax:atom(pins), erl_syntax:map_expr(Pins)),
-                                    erl_syntax:map_field_assoc(erl_syntax:atom(left), LeftVar),
-                                    erl_syntax:map_field_assoc(erl_syntax:atom(right), RightVar),
-                                    erl_syntax:map_field_assoc(
-                                        erl_syntax:atom(operator), erl_syntax:atom(erl_syntax:operator_name(Operator))
-                                    )
-                                ])
-                            )
-                        ])
-                    ]);
+                    expand_comparison(Expr, Operator, Pins);
                 false ->
-                    default_expansion(Expr, Pins)
+                    expand_generic(Expr, Pins)
             end;
         _ ->
-            default_expansion(Expr, Pins)
+            expand_generic(Expr, Pins)
     end.
 
--spec default_expansion(tree(), [tree()]) -> tree().
-default_expansion(Expr, Pins) ->
-    erl_syntax:map_expr([
+-spec expand_comparison(tree(), tree(), [tree()]) -> tree().
+expand_comparison(Expr, Operator, Pins) ->
+    Left = erl_syntax:infix_expr_left(Expr),
+    Right = erl_syntax:infix_expr_right(Expr),
+    LeftVar = erl_syntax:variable('Left__Left'),
+    RightVar = erl_syntax:variable('Right__Right'),
+    ComparisonFields = [
+        erl_syntax:map_field_assoc(erl_syntax:atom(left), LeftVar),
+        erl_syntax:map_field_assoc(erl_syntax:atom(right), RightVar),
         erl_syntax:map_field_assoc(
-            erl_syntax:atom(bool_expr), Expr
-        ),
-        erl_syntax:map_field_assoc(
-            erl_syntax:atom(meta),
-            erl_syntax:map_expr([
-                erl_syntax:map_field_assoc(erl_syntax:atom(type), erl_syntax:atom(generic)),
-                erl_syntax:map_field_assoc(erl_syntax:atom(pins), erl_syntax:map_expr(Pins))
-            ])
+            erl_syntax:atom(operator), erl_syntax:atom(erl_syntax:operator_name(Operator))
         )
-    ]).
+    ],
+    BoolExpr = erl_syntax:infix_expr(LeftVar, Operator, RightVar),
+    Bindings = [erl_syntax:match_expr(LeftVar, Left), erl_syntax:match_expr(RightVar, Right)],
+    build_result_block(Bindings, BoolExpr, comparison, Pins, ComparisonFields).
+
+-spec expand_generic(tree(), [tree()]) -> tree().
+expand_generic(Expr, Pins) ->
+    build_result_block([], Expr, generic, Pins, []).
+
+-spec build_result_block([tree()], tree(), atom(), [tree()], [tree()]) -> tree().
+build_result_block(Bindings, BoolExpr, Type, Pins, ExtraFields) ->
+    MetaFields =
+        [
+            erl_syntax:map_field_assoc(erl_syntax:atom(type), erl_syntax:atom(Type)),
+            erl_syntax:map_field_assoc(erl_syntax:atom(pins), erl_syntax:map_expr(Pins))
+        ] ++ ExtraFields,
+    ResultMap = erl_syntax:map_expr([
+        erl_syntax:map_field_assoc(erl_syntax:atom(bool_expr), BoolExpr),
+        erl_syntax:map_field_assoc(erl_syntax:atom(meta), erl_syntax:map_expr(MetaFields))
+    ]),
+    erl_syntax:block_expr(Bindings ++ [ResultMap]).
 
 -spec extract_pins(erl_anno:anno() | erl_anno:location(), tree()) -> [tree()].
 extract_pins(Anno, Expr) ->
