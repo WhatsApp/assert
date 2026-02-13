@@ -84,6 +84,7 @@ end).
                         {module, ?MODULE},
                         {line, ?LINE},
                         {expression, (??Expr)},
+                        {pattern, (??Pattern)},
                         {value, X__V}
                     ]},
                 case
@@ -113,6 +114,7 @@ end).
                         {line, ?LINE},
                         {comment, (Comment)},
                         {expression, (??Expr)},
+                        {pattern, (??Pattern)},
                         {value, X__V}
                     ]},
                 case
