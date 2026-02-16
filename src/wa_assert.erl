@@ -18,6 +18,7 @@
 -compile(warn_missing_spec_all).
 
 -export([error_info/2, assert_error_info/2, format_error/2, format_comparison_error/2, format_generic_error/2]).
+-export([maybe_format_comment/1]).
 
 -export(['$assert_match_error_info$'/1, '$expand_assert$'/1]).
 
@@ -91,6 +92,16 @@ format_pins(Pins) ->
 -spec format_pin(term(), term()) -> string().
 format_pin(Key, Value) ->
     lists:flatten(io_lib:format("  ~p: ~p~n", [Key, Value])).
+
+-spec maybe_format_comment(Comment) -> Comment when Comment :: term().
+maybe_format_comment(Comment) when is_list(Comment) ->
+    try
+        lists:flatten(io_lib:format("~s", [Comment]))
+    catch
+        _:_ -> Comment
+    end;
+maybe_format_comment(Comment) ->
+    Comment.
 
 %% These are only used as markers for the parse transform, but they are defined nonetheless to avoid
 %% warnings about unused functions.

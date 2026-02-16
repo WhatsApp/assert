@@ -57,7 +57,7 @@ end).
                     {assertEqual, [
                         {module, ?MODULE},
                         {line, ?LINE},
-                        {comment, (Comment)},
+                        {comment, wa_assert:maybe_format_comment((Comment))},
                         {expression, (??Expr)},
                         {expected, X__X},
                         {value, X__V}
@@ -112,7 +112,7 @@ end).
                     {assertMatch, [
                         {module, ?MODULE},
                         {line, ?LINE},
-                        {comment, (Comment)},
+                        {comment, wa_assert:maybe_format_comment((Comment))},
                         {expression, (??Expr)},
                         {pattern, (??Pattern)},
                         {value, X__V}
@@ -179,7 +179,7 @@ end).
     (fun() ->
         case (BoolExpr) of
             true -> ok;
-            _ -> erlang:error(Comment)
+            _ -> erlang:error(wa_assert:maybe_format_comment(Comment))
         end
     end)()
 end).
@@ -197,7 +197,7 @@ end).
                     {assert, [
                         {module, ?MODULE},
                         {line, ?LINE},
-                        {comment, (Comment)},
+                        {comment, wa_assert:maybe_format_comment((Comment))},
                         {expression, (??BoolExpr)},
                         {expected, true},
                         case not X__T of

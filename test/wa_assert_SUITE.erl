@@ -38,7 +38,9 @@
     assert_in_range_inclusive/1,
     assert_in_range_exclusive/1,
     assert_equal_with_delta/1,
-    assert_comparison_macros_preserve_error_info/1
+    assert_comparison_macros_preserve_error_info/1,
+    maybe_format_comment/1,
+    format_comment_integration/1
 ]).
 
 all() ->
@@ -56,7 +58,9 @@ all() ->
         assert_in_range_inclusive,
         assert_in_range_exclusive,
         assert_equal_with_delta,
-        assert_comparison_macros_preserve_error_info
+        assert_comparison_macros_preserve_error_info,
+        maybe_format_comment,
+        format_comment_integration
     ].
 
 %%--------------------------------------------------------------------
@@ -265,6 +269,56 @@ assert_comparison_macros_preserve_error_info(_Config) ->
             %% Verify comparison metadata is present (left, right, operator)
             #{left := 5, right := 10, operator := '>'} = Cause,
             ok
+    end.
+
+%%--------------------------------------------------------------------
+%% Format Comment Tests
+%%--------------------------------------------------------------------
+
+maybe_format_comment(_Config) ->
+    F = fun wa_assert:maybe_format_comment/1,
+    %% Iolists (from io_lib:format) get flattened to strings
+    ?assertEqual("value is 42", F(io_lib:format("value is ~p", [42]))),
+    ?assertEqual("a and b", F(io_lib:format("~s and ~s", ["a", "b"]))),
+    ?assertEqual("no args", F(io_lib:format("no args", []))),
+    ?assertEqual("café", F(io_lib:format("caf~ts", ["é"]))),
+    ?assertEqual("3.14", F(io_lib:format("~.2f", [3.14159]))),
+    %% Plain strings pass through (already flat)
+    ?assertEqual("plain string", F("plain string")),
+    ?assertEqual("", F("")),
+    %% Pass-through cases (non-stringy inputs)
+    PassThrough = [
+        {"label", some_atom},
+        {"~p", [42]},
+        an_atom,
+        42,
+        #{reason => test_failed},
+        [atom, 123, "mixed"],
+        self(),
+        {"a", "b", "c"}
+    ],
+    lists:foreach(fun(Input) -> ?assertEqual(Input, F(Input)) end, PassThrough),
+    Ref = make_ref(),
+    ?assertEqual(Ref, F(Ref)).
+
+format_comment_integration(_Config) ->
+    %% assertEqual with io_lib:format
+    try
+        ?assertEqual(expected(), actual(), io_lib:format("got ~p", [actual()]))
+    catch
+        error:{assertEqual, P1} -> ?assertEqual("got 42", proplists:get_value(comment, P1))
+    end,
+    %% assertMatch with io_lib:format
+    try
+        ?assertMatch(#{key := _}, actual(#{}), io_lib:format("missing ~p", [key]))
+    catch
+        error:{assertMatch, P2} -> ?assertEqual("missing key", proplists:get_value(comment, P2))
+    end,
+    %% assert with io_lib:format
+    try
+        ?assert(actual(false), io_lib:format("failed ~p", [check]))
+    catch
+        error:{assert, P3} -> ?assertEqual("failed check", proplists:get_value(comment, P3))
     end.
 
 %%--------------------------------------------------------------------
