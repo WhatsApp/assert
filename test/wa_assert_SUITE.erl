@@ -54,7 +54,8 @@
     format_where/1,
     format_error_output/1,
     format_repeated_calls_output/1,
-    variable_collision_regression/1
+    variable_collision_regression/1,
+    format_intermediate_float_short_form/1
 ]).
 
 all() ->
@@ -88,7 +89,8 @@ all() ->
         format_where,
         format_error_output,
         format_repeated_calls_output,
-        variable_collision_regression
+        variable_collision_regression,
+        format_intermediate_float_short_form
     ].
 
 %%--------------------------------------------------------------------
@@ -365,7 +367,12 @@ assert_intermediates_capture(_Config) ->
         error:{assert, _}:Stacktrace1 ->
             Intermediates1 = get_intermediates(Stacktrace1),
             ?assertEqual(1, length(Intermediates1)),
-            ?assert(lists:member(600.0, intermediate_values(Intermediates1)))
+            ?assert(lists:member(600.0, intermediate_values(Intermediates1))),
+            [{Key1, _}] = Intermediates1,
+            ?assertEqual("Size1 * 0.6", Key1),
+            %% Verify no scientific notation in expression key
+            ?assertEqual(nomatch, string:find(Key1, "e-")),
+            ?assertEqual(nomatch, string:find(Key1, "e+"))
     end,
     %% Function calls
     Items = [],
@@ -400,18 +407,20 @@ assert_intermediates_capture(_Config) ->
             ?assert(lists:member(300, Values4)),
             ?assert(lists:member(500, Values4))
     end,
-    %% Nested function calls with arithmetic: ceil(Size * 35 / 100)
-    Size3 = 999,
+    %% Nested function calls with arithmetic: ceil(Size * 0.35)
+    %% Also verifies float formatting in expression keys (no scientific notation)
+    Size3 = 1000,
     Value3 = 200,
     try
-        ?assert(Value3 > ceil(Size3 * 35 / 100))
+        ?assert(Value3 > ceil(Size3 * 0.35))
     catch
         error:{assert, _}:Stacktrace5 ->
             Intermediates5 = get_intermediates(Stacktrace5),
+            ?assert(has_intermediate("Size3 * 0.35", Intermediates5)),
+            ?assertNot(has_intermediate("Size3 * 3.49999999999999977796e-1", Intermediates5)),
             Values5 = intermediate_values(Intermediates5),
-            %% ceil(999 * 35 / 100) = ceil(349.65) = 350
-            ?assert(lists:member(350, Values5)),
-            ?assert(lists:member(349.65, Values5))
+            ?assert(lists:member(350.0, Values5)),
+            ?assert(lists:member(350, Values5))
     end.
 
 assert_simple_comparison_no_intermediates(_Config) ->
@@ -665,6 +674,12 @@ variable_collision_regression(_Config) ->
     end,
     ok = Outer(5),
     ok = Outer(20).
+
+format_intermediate_float_short_form(_Config) ->
+    Intermediates = [{"ByteSize * 0.15", 1904 * 0.15}],
+    Result = wa_assert:format_where(#{}, Intermediates),
+    ?assert(is_list(string:find(Result, "285.6"))),
+    ?assertEqual(nomatch, string:find(Result, "285.5999999")).
 
 %%--------------------------------------------------------------------
 %% Internal Helpers

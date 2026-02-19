@@ -136,7 +136,17 @@ format_pin(Key, Value) ->
 
 -spec format_intermediate(string(), term()) -> string().
 format_intermediate(ExprStr, Value) ->
-    lists:flatten(io_lib:format("  '~s': ~p", [ExprStr, Value])).
+    lists:flatten(io_lib:format("  '~s': ~s", [ExprStr, format_value(Value)])).
+
+-spec format_value(term()) -> string().
+format_value(Value) when is_float(Value) ->
+    Abs = abs(Value),
+    case Abs < 1.0e10 andalso (Abs > 1.0e-10 orelse Value =:= +0.0) of
+        true -> float_to_list(Value, [{decimals, 10}, compact]);
+        false -> float_to_list(Value, [short])
+    end;
+format_value(Value) ->
+    lists:flatten(io_lib:format("~p", [Value])).
 
 -spec maybe_format_comment(Comment) -> Comment when Comment :: term().
 maybe_format_comment(Comment) when is_list(Comment) ->

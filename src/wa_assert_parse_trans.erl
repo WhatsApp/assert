@@ -92,7 +92,7 @@ transform_expr(Expr) ->
 -spec process_assert_match_error_info(erl_anno:anno() | erl_anno:location(), [tree()]) -> tuple().
 process_assert_match_error_info(Anno, [Expr0]) ->
     Pattern0 = extract_pattern(Expr0),
-    PatternStr = {string, Anno, erl_prettypr:format(Pattern0)},
+    PatternStr = {string, Anno, format_expr(Pattern0)},
     Pins = extract_pins(Anno, Pattern0),
     PinsVar = {var, Anno, 'Pins'},
     {block, Anno, [
@@ -258,7 +258,7 @@ transform_intermediates_impl(Expr, Bindings, Entries, Line, N, Depth) ->
                 Groups ->
                     case is_intermediate(Expr) of
                         true ->
-                            ExprStr = erl_prettypr:format(Expr),
+                            ExprStr = format_expr(Expr),
                             {NewGroups, Bindings1, Entries1, N1} =
                                 transform_subtrees(Groups, Bindings, Entries, Line, N, Depth + 1),
                             TransformedExpr = erl_syntax:update_tree(Expr, NewGroups),
@@ -356,6 +356,38 @@ pins(Anno, Attrs) ->
     {free, Free} = lists:keyfind(free, 1, Attrs),
     {env, Env} = lists:keyfind(env, 1, Attrs),
     [?map_key(Anno, Name, {var, Anno, Name}) || Name <- Free, lists:member(Name, Env)].
+
+%% Format expression to string, with special handling for floats to avoid
+%% erl_prettypr's scientific notation (e.g., "5.99999999999999977796e-1" instead of "0.6")
+%% Short circuit if there are no floats in the expression.
+-spec format_expr(tree()) -> string().
+format_expr(Expr) ->
+    case has_float(Expr) of
+        true ->
+            Transformed = erl_syntax_lib:map(fun transform_floats/1, Expr),
+            erl_prettypr:format(Transformed);
+        false ->
+            erl_prettypr:format(Expr)
+    end.
+
+-spec has_float(tree()) -> boolean().
+has_float(Expr) ->
+    erl_syntax_lib:fold(
+        fun(Node, Acc) ->
+            Acc orelse erl_syntax:type(Node) =:= float
+        end,
+        false,
+        Expr
+    ).
+
+-spec transform_floats(tree()) -> tree().
+transform_floats(Node) ->
+    case erl_syntax:type(Node) of
+        float ->
+            erl_syntax:text(float_to_list(erl_syntax:float_value(Node), [short]));
+        _ ->
+            Node
+    end.
 
 -spec format_error(erl_lint:error_info()) -> io_lib:chars().
 format_error(E) ->
