@@ -42,9 +42,19 @@
     maybe_format_comment/1,
     format_comment_integration/1,
     assert_intermediates_capture/1,
+    assert_simple_comparison_no_intermediates/1,
+    assert_excludes_local_bindings/1,
+    assert_edge_cases_no_crash/1,
     assert_nested_calls_evaluated_once/1,
+    assert_multiple_identical_calls/1,
+    assert_counter_chaining_across_comparison/1,
+    assert_deeply_nested_calls/1,
+    assert_mixed_arithmetic_and_calls/1,
+    assert_pure_function_repeated/1,
     format_where/1,
-    format_error_output/1
+    format_error_output/1,
+    format_repeated_calls_output/1,
+    variable_collision_regression/1
 ]).
 
 all() ->
@@ -66,9 +76,19 @@ all() ->
         maybe_format_comment,
         format_comment_integration,
         assert_intermediates_capture,
+        assert_simple_comparison_no_intermediates,
+        assert_excludes_local_bindings,
+        assert_edge_cases_no_crash,
         assert_nested_calls_evaluated_once,
+        assert_multiple_identical_calls,
+        assert_counter_chaining_across_comparison,
+        assert_deeply_nested_calls,
+        assert_mixed_arithmetic_and_calls,
+        assert_pure_function_repeated,
         format_where,
-        format_error_output
+        format_error_output,
+        format_repeated_calls_output,
+        variable_collision_regression
     ].
 
 %%--------------------------------------------------------------------
@@ -336,6 +356,7 @@ format_comment_integration(_Config) ->
 %% Verifies intermediate values are captured for arithmetic, function calls,
 %% and nested expressions like ceil(Size * 35 / 100).
 assert_intermediates_capture(_Config) ->
+    %% Arithmetic expressions
     Size1 = 1000,
     Value1 = 500,
     try
@@ -346,6 +367,7 @@ assert_intermediates_capture(_Config) ->
             ?assertEqual(1, length(Intermediates1)),
             ?assert(lists:member(600.0, intermediate_values(Intermediates1)))
     end,
+    %% Function calls
     Items = [],
     try
         ?assert(length(Items) > 0)
@@ -363,6 +385,7 @@ assert_intermediates_capture(_Config) ->
             ?assert(has_intermediate("lists:nth(2, [a, b, c])", Intermediates3)),
             ?assertEqual(b, get_intermediate("lists:nth(2, [a, b, c])", Intermediates3))
     end,
+    %% Combined arithmetic and function calls
     Size2 = 1000,
     Items2 = [a, b, c],
     try
@@ -377,6 +400,7 @@ assert_intermediates_capture(_Config) ->
             ?assert(lists:member(300, Values4)),
             ?assert(lists:member(500, Values4))
     end,
+    %% Nested function calls with arithmetic: ceil(Size * 35 / 100)
     Size3 = 999,
     Value3 = 200,
     try
@@ -390,11 +414,121 @@ assert_intermediates_capture(_Config) ->
             ?assert(lists:member(349.65, Values5))
     end.
 
+assert_simple_comparison_no_intermediates(_Config) ->
+    X = 5,
+    Y = 10,
+    try
+        ?assert(X > Y)
+    catch
+        error:{assert, _}:Stacktrace ->
+            ?assertEqual([], get_intermediates(Stacktrace))
+    end.
+
+%% Expressions with local bindings (lambdas, list comprehensions) are excluded
+%% from intermediate extraction, but enclosing function calls are still captured.
+assert_excludes_local_bindings(_Config) ->
+    %% Lambda bodies excluded
+    Items1 = [1, 2, 3],
+    try
+        ?assert(lists:any(fun(X) -> X * 2 > 10 end, Items1))
+    catch
+        error:{assert, _}:Stacktrace1 ->
+            Intermediates1 = get_intermediates(Stacktrace1),
+            ?assertEqual(1, length(Intermediates1)),
+            ?assert(has_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1)),
+            ?assertEqual(false, get_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1))
+    end,
+    %% List comprehension bodies excluded
+    Items2 = [1, 2, 3],
+    try
+        ?assert(lists:sum([X * 2 || X <- Items2]) > 100)
+    catch
+        error:{assert, _}:Stacktrace2 ->
+            Intermediates2 = get_intermediates(Stacktrace2),
+            ?assertEqual(1, length(Intermediates2)),
+            ?assertEqual(12, get_intermediate("lists:sum([X * 2 || X <- Items2])", Intermediates2))
+    end.
+
+%% Edge cases that must not crash the parse transform.
+assert_edge_cases_no_crash(_Config) ->
+    ?assert(lists:member(a, [_X = a, b, c])),
+    ?assert(true),
+    ?assert(42 =:= 42),
+    ?assert(foo =:= foo),
+    X = 5,
+    Y = 5,
+    ?assert(X =:= Y).
+
 %% Nested calls must be evaluated exactly once (children-first extraction order).
 assert_nested_calls_evaluated_once(_Config) ->
     put(call_count, 0),
     ?assert(length(counted_val([1, 2, 3])) =:= 3),
     ?assertEqual(1, get(call_count)).
+
+%% Multiple identical calls each get their own variable.
+assert_multiple_identical_calls(_Config) ->
+    put(call_count, 0),
+    try
+        ?assert({counted_val(1), counted_val(1)} =:= {1, 2})
+    catch
+        error:{assert, _}:Stacktrace ->
+            ?assertEqual(2, get(call_count)),
+            ?assertEqual(2, length(get_intermediates(Stacktrace)))
+    end.
+
+%% Intermediates on both sides of comparison get unique variables.
+assert_counter_chaining_across_comparison(_Config) ->
+    put(call_count, 0),
+    try
+        ?assert(counted_val(5) > counted_val(10))
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assertEqual(2, get(call_count)),
+            ?assertEqual(2, length(Intermediates)),
+            Values = intermediate_values(Intermediates),
+            ?assert(lists:member(5, Values)),
+            ?assert(lists:member(10, Values))
+    end.
+
+%% All nesting levels extracted, inner first.
+assert_deeply_nested_calls(_Config) ->
+    try
+        ?assert(outer(middle(inner(42))) =:= wrong)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assertEqual(3, length(Intermediates)),
+            ?assert(has_intermediate("inner(42)", Intermediates)),
+            ?assert(has_intermediate("middle(inner(42))", Intermediates)),
+            ?assert(has_intermediate("outer(middle(inner(42)))", Intermediates))
+    end.
+
+%% Mixed arithmetic and function calls all extracted.
+assert_mixed_arithmetic_and_calls(_Config) ->
+    try
+        ?assert(foo(1) + bar(2) * baz(3) > 1000)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Values = intermediate_values(get_intermediates(Stacktrace)),
+            ?assert(lists:member(1, Values)),
+            ?assert(lists:member(2, Values)),
+            ?assert(lists:member(3, Values)),
+            ?assert(lists:member(6, Values)),
+            ?assert(lists:member(7, Values))
+    end.
+
+%% Pure function repeated: both extracted, display may dedupe same values.
+assert_pure_function_repeated(_Config) ->
+    X = [a, b, c],
+    try
+        ?assert(length(X) + length(X) > 100)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assertEqual(3, length(Intermediates)),
+            ?assertEqual([3, 3, 6], intermediate_values(Intermediates))
+    end.
 
 %%--------------------------------------------------------------------
 %% Formatting Output Tests
@@ -424,6 +558,7 @@ format_where(_Config) ->
 %% Verifies error formatting for comparison errors (with pins and intermediates)
 %% and generic errors.
 format_error_output(_Config) ->
+    %% Comparison error with pins
     X = 5,
     Y = 10,
     try
@@ -438,6 +573,7 @@ format_error_output(_Config) ->
             ?assert(is_list(string:find(ReasonStr1, "'Y': 10"))),
             ?assert(is_list(string:find(ReasonStr1, "Because:")))
     end,
+    %% Comparison error with intermediates
     Size = 1000,
     Value = 500,
     try
@@ -451,6 +587,7 @@ format_error_output(_Config) ->
             ?assert(is_list(string:find(ReasonStr2, "'Value': 500"))),
             ?assert(is_list(string:find(ReasonStr2, "500")))
     end,
+    %% Generic error with intermediates
     Items = [a, b],
     try
         ?assert(length(Items) > 5)
@@ -461,6 +598,73 @@ format_error_output(_Config) ->
             ?assert(is_list(string:find(ReasonStr3, "Where:"))),
             ?assert(is_list(string:find(ReasonStr3, "'length(Items)': 2")))
     end.
+
+format_repeated_calls_output(_Config) ->
+    %% Impure function - each call produces different value, both appear
+    put(call_count, 0),
+    try
+        ?assert({impure_counter(), impure_counter()} =:= {0, 0})
+    catch
+        error:{assert, _} = E1:Stacktrace1 ->
+            ?assertEqual(2, get(call_count)),
+            #{reason := Reason1} = wa_assert:format_comparison_error(E1, Stacktrace1),
+            ReasonStr1 = chardata_to_list(Reason1),
+            ?assert(is_list(string:find(ReasonStr1, "'impure_counter()': 1"))),
+            ?assert(is_list(string:find(ReasonStr1, "'impure_counter()': 2")))
+    end,
+    %% Pure function - duplicate mappings (same key+value) deduplicated
+    X = [a, b, c],
+    try
+        ?assert(length(X) + length(X) > 100)
+    catch
+        error:{assert, _} = E2:Stacktrace2 ->
+            #{reason := Reason2} = wa_assert:format_generic_error(E2, Stacktrace2),
+            ReasonStr2 = chardata_to_list(Reason2),
+            Pattern = "'length(X)': 3",
+            First = string:find(ReasonStr2, Pattern),
+            ?assert(is_list(First)),
+            %% No second occurrence
+            Rest = string:slice(First, string:length(Pattern)),
+            ?assertEqual(nomatch, string:find(Rest, Pattern))
+    end.
+
+%%--------------------------------------------------------------------
+%% Variable Name Collision Regression Test
+%%
+%% The parse transform generates temporary variables (Intermediate__<line>_<N>)
+%% for each assertion. If names collide, the Erlang compiler rejects the module,
+%% so successful compilation of this test is itself the primary assertion.
+%%--------------------------------------------------------------------
+
+variable_collision_regression(_Config) ->
+    %% Multiple comparison and generic assertions in same scope
+    X = 5,
+    Y = 10,
+    Z = 15,
+    List = [1, 2, 3],
+    ?assert(X < Y),
+    ?assert(Y < Z),
+    ?assert(X < Z),
+    ?assert(length(List) =:= 3),
+    ?assert(X + Y =:= 15),
+    ?assert(lists:sum(List) =:= 6),
+    %% Assertions alongside list comprehensions
+    Doubled = [V * 2 || V <- List],
+    ?assert(length(Doubled) =:= 3),
+    ?assert(lists:sum(Doubled) =:= 12),
+    %% Assertions inside fun bodies and nested funs
+    Outer = fun(A) ->
+        ?assert(A > 0),
+        Inner = fun(B) ->
+            ?assert(B > A),
+            ?assert(B < 100),
+            ok
+        end,
+        ?assert(A < 50),
+        Inner(A + 10)
+    end,
+    ok = Outer(5),
+    ok = Outer(20).
 
 %%--------------------------------------------------------------------
 %% Internal Helpers
@@ -476,6 +680,19 @@ expected_list() -> [1, 5, 3, 2, 4].
 counted_val(X) ->
     put(call_count, get(call_count) + 1),
     X.
+
+impure_counter() ->
+    Count = get(call_count) + 1,
+    put(call_count, Count),
+    Count.
+
+inner(X) -> X.
+middle(X) -> X.
+outer(X) -> X.
+
+foo(X) -> X.
+bar(X) -> X.
+baz(X) -> X.
 
 get_intermediates(Stacktrace) ->
     [{_M, _F, _Args, Info} | _] = Stacktrace,
