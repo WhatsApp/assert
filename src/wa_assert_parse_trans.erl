@@ -16,8 +16,6 @@
 %% erlfmt:ignore
 % @fb-only: -oncall("whatsapp_server_devx").
 -compile(warn_missing_spec_all).
-% elp:ignore W0054 (no_nowarn_suppressions) - helpers are called by the traversal engine added in the next diff
--compile({nowarn_unused_function, [{get_line, 1}, {is_intermediate, 1}, {contains_short_circuit, 1}]}).
 
 %% Public API
 -export([parse_transform/2, format_error/1]).
@@ -34,9 +32,7 @@
 % breaking short-circuit semantics (RHS may not be evaluated at runtime)
 -define(SHORT_CIRCUIT_OPERATORS, ['orelse', 'andalso']).
 % Performance limits for intermediate extraction
-% elp:ignore W0002 (unused_macro) - used by the traversal engine added in the next diff
 -define(MAX_INTERMEDIATE_DEPTH, 3).
-% elp:ignore W0002 (unused_macro)
 -define(MAX_INTERMEDIATES, 10).
 
 -type tree() :: erl_syntax:syntaxTree().
@@ -107,17 +103,18 @@ process_assert_match_error_info(Anno, [Expr0]) ->
 -spec process_expand_assert([tree()]) -> tree().
 process_expand_assert([Expr]) ->
     Pins = extract_pins(0, Expr),
+    Line = get_line(Expr),
     case erl_syntax:type(Expr) of
         infix_expr ->
             Operator = erl_syntax:infix_expr_operator(Expr),
             case lists:member(erl_syntax:operator_name(Operator), ?COMPARISON_OPERATORS) of
                 true ->
-                    expand_comparison(Expr, Operator, Pins);
+                    expand_comparison(Expr, Operator, Pins, Line);
                 false ->
-                    expand_generic(Expr, Pins)
+                    expand_generic(Expr, Pins, Line)
             end;
         _ ->
-            expand_generic(Expr, Pins)
+            expand_generic(Expr, Pins, Line)
     end.
 
 -spec get_line(tree()) -> non_neg_integer().
@@ -132,12 +129,27 @@ get_line(Expr) ->
             end
     end.
 
--spec expand_comparison(tree(), tree(), [tree()]) -> tree().
-expand_comparison(Expr, Operator, Pins) ->
-    Left = erl_syntax:infix_expr_left(Expr),
-    Right = erl_syntax:infix_expr_right(Expr),
+-spec expand_comparison(tree(), tree(), [tree()], non_neg_integer()) -> tree().
+expand_comparison(Expr, Operator, Pins, Line) ->
+    Left0 = erl_syntax:infix_expr_left(Expr),
+    Right0 = erl_syntax:infix_expr_right(Expr),
     LeftVar = erl_syntax:variable('Left__Left'),
     RightVar = erl_syntax:variable('Right__Right'),
+    {Left, LeftBindings, LeftEntries, N} = transform_intermediates(Left0, Line, 0),
+    {Right, RightBindings, RightEntries, _} = transform_intermediates(Right0, Line, N),
+    IntermediateBindings = LeftBindings ++ RightBindings,
+    IntermediateFields =
+        case LeftEntries ++ RightEntries of
+            [] ->
+                [];
+            Entries ->
+                [
+                    erl_syntax:map_field_assoc(
+                        erl_syntax:atom(intermediates),
+                        erl_syntax:list(Entries)
+                    )
+                ]
+        end,
     ComparisonFields = [
         erl_syntax:map_field_assoc(erl_syntax:atom(left), LeftVar),
         erl_syntax:map_field_assoc(erl_syntax:atom(right), RightVar),
@@ -146,12 +158,31 @@ expand_comparison(Expr, Operator, Pins) ->
         )
     ],
     BoolExpr = erl_syntax:infix_expr(LeftVar, Operator, RightVar),
-    Bindings = [erl_syntax:match_expr(LeftVar, Left), erl_syntax:match_expr(RightVar, Right)],
-    build_result_block(Bindings, BoolExpr, comparison, Pins, ComparisonFields).
+    build_result_block(
+        IntermediateBindings ++
+            [erl_syntax:match_expr(LeftVar, Left), erl_syntax:match_expr(RightVar, Right)],
+        BoolExpr,
+        comparison,
+        Pins,
+        ComparisonFields ++ IntermediateFields
+    ).
 
--spec expand_generic(tree(), [tree()]) -> tree().
-expand_generic(Expr, Pins) ->
-    build_result_block([], Expr, generic, Pins, []).
+-spec expand_generic(tree(), [tree()], non_neg_integer()) -> tree().
+expand_generic(Expr, Pins, Line) ->
+    {TransformedExpr, IntermediateBindings, IntermediateEntries} = transform_intermediates(Expr, Line),
+    IntermediateFields =
+        case IntermediateEntries of
+            [] ->
+                [];
+            Entries ->
+                [
+                    erl_syntax:map_field_assoc(
+                        erl_syntax:atom(intermediates),
+                        erl_syntax:list(Entries)
+                    )
+                ]
+        end,
+    build_result_block(IntermediateBindings, TransformedExpr, generic, Pins, IntermediateFields).
 
 -spec build_result_block([tree()], tree(), atom(), [tree()], [tree()]) -> tree().
 build_result_block(Bindings, BoolExpr, Type, Pins, ExtraFields) ->
@@ -165,6 +196,115 @@ build_result_block(Bindings, BoolExpr, Type, Pins, ExtraFields) ->
         erl_syntax:map_field_assoc(erl_syntax:atom(meta), erl_syntax:map_expr(MetaFields))
     ]),
     erl_syntax:block_expr(Bindings ++ [ResultMap]).
+
+-doc """
+Single-pass intermediate extraction and substitution.
+Walks the AST once, replacing each intermediate with a fresh variable.
+Returns {TransformedExpr, Bindings, Entries} where each intermediate
+occurrence gets its own unique variable at the moment of discovery.
+Line is used to make variable names unique per assertion.
+Depth and count limits prevent pathological cases.
+""".
+-spec transform_intermediates(tree(), non_neg_integer()) -> {tree(), [tree()], [tree()]}.
+transform_intermediates(Expr, Line) ->
+    {TransformedExpr, Bindings, Entries, _N} = transform_intermediates(Expr, Line, 0),
+    {TransformedExpr, Bindings, Entries}.
+
+%% Version that accepts a starting counter, returns final counter for chaining.
+-spec transform_intermediates(tree(), non_neg_integer(), non_neg_integer()) ->
+    {tree(), [tree()], [tree()], non_neg_integer()}.
+transform_intermediates(Expr, Line, StartN) ->
+    case contains_short_circuit(Expr) of
+        % skip expressions that can short-circuit
+        true ->
+            {Expr, [], [], StartN};
+        false ->
+            {TransformedExpr, Bindings, Entries, N} =
+                transform_intermediates_impl(Expr, [], [], Line, StartN, 0),
+            {TransformedExpr, lists:reverse(Bindings), lists:reverse(Entries), N}
+    end.
+
+%% Stop extracting intermediates beyond max depth or count to prevent pathological cases.
+-spec transform_intermediates_impl(tree(), [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
+    {tree(), [tree()], [tree()], non_neg_integer()}.
+transform_intermediates_impl(Expr, Bindings, Entries, _Line, N, Depth) when
+    Depth > ?MAX_INTERMEDIATE_DEPTH; N >= ?MAX_INTERMEDIATES
+->
+    {Expr, Bindings, Entries, N};
+transform_intermediates_impl(Expr, Bindings, Entries, Line, N, Depth) ->
+    case erl_syntax:type(Expr) of
+        T when
+            % skip expressions with local bindings
+            T =:= fun_expr;
+            T =:= implicit_fun;
+            T =:= named_fun_expr;
+            T =:= list_comp;
+            T =:= binary_comp;
+            T =:= map_comp;
+            T =:= block_expr;
+            T =:= case_expr;
+            T =:= if_expr;
+            T =:= receive_expr;
+            T =:= try_expr;
+            T =:= catch_expr;
+            T =:= maybe_expr;
+            T =:= match_expr
+        ->
+            {Expr, Bindings, Entries, N};
+        _ ->
+            case erl_syntax:subtrees(Expr) of
+                [] ->
+                    {Expr, Bindings, Entries, N};
+                Groups ->
+                    case is_intermediate(Expr) of
+                        true ->
+                            ExprStr = erl_prettypr:format(Expr),
+                            {NewGroups, Bindings1, Entries1, N1} =
+                                transform_subtrees(Groups, Bindings, Entries, Line, N, Depth + 1),
+                            TransformedExpr = erl_syntax:update_tree(Expr, NewGroups),
+                            VarName = list_to_atom(
+                                "Intermediate__" ++ integer_to_list(Line) ++ "_" ++ integer_to_list(N1)
+                            ),
+                            Var = erl_syntax:variable(VarName),
+                            Binding = erl_syntax:match_expr(Var, TransformedExpr),
+                            Entry = erl_syntax:tuple([erl_syntax:string(ExprStr), Var]),
+                            {Var, [Binding | Bindings1], [Entry | Entries1], N1 + 1};
+                        false ->
+                            {NewGroups, Bindings1, Entries1, N1} =
+                                transform_subtrees(Groups, Bindings, Entries, Line, N, Depth),
+                            TransformedExpr = erl_syntax:update_tree(Expr, NewGroups),
+                            {TransformedExpr, Bindings1, Entries1, N1}
+                    end
+            end
+    end.
+
+-spec transform_subtrees([[tree()]], [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
+    {[[tree()]], [tree()], [tree()], non_neg_integer()}.
+transform_subtrees(Groups, Bindings, Entries, Line, N, Depth) ->
+    {RevGroups, FinalBindings, FinalEntries, FinalN} = lists:foldl(
+        fun(Group, {AccGroups, AccBindings, AccEntries, AccN}) ->
+            {TransformedGroup, NewBindings, NewEntries, NewN} =
+                transform_group(Group, AccBindings, AccEntries, Line, AccN, Depth),
+            {[TransformedGroup | AccGroups], NewBindings, NewEntries, NewN}
+        end,
+        {[], Bindings, Entries, N},
+        Groups
+    ),
+    {lists:reverse(RevGroups), FinalBindings, FinalEntries, FinalN}.
+
+-spec transform_group([tree()], [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
+    {[tree()], [tree()], [tree()], non_neg_integer()}.
+transform_group(Group, Bindings, Entries, Line, N, Depth) ->
+    {RevChildren, FinalBindings, FinalEntries, FinalN} = lists:foldl(
+        fun(Child, {AccChildren, AccBindings, AccEntries, AccN}) ->
+            {Transformed, NewBindings, NewEntries, NewN} =
+                transform_intermediates_impl(Child, AccBindings, AccEntries, Line, AccN, Depth),
+            {[Transformed | AccChildren], NewBindings, NewEntries, NewN}
+        end,
+        {[], Bindings, Entries, N},
+        Group
+    ),
+    {lists:reverse(RevChildren), FinalBindings, FinalEntries, FinalN}.
 
 -spec contains_short_circuit(tree()) -> boolean().
 contains_short_circuit(Expr) ->

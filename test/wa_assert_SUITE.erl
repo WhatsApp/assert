@@ -41,7 +41,10 @@
     assert_comparison_macros_preserve_error_info/1,
     maybe_format_comment/1,
     format_comment_integration/1,
-    format_where/1
+    assert_intermediates_capture/1,
+    assert_nested_calls_evaluated_once/1,
+    format_where/1,
+    format_error_output/1
 ]).
 
 all() ->
@@ -62,7 +65,10 @@ all() ->
         assert_comparison_macros_preserve_error_info,
         maybe_format_comment,
         format_comment_integration,
-        format_where
+        assert_intermediates_capture,
+        assert_nested_calls_evaluated_once,
+        format_where,
+        format_error_output
     ].
 
 %%--------------------------------------------------------------------
@@ -324,6 +330,73 @@ format_comment_integration(_Config) ->
     end.
 
 %%--------------------------------------------------------------------
+%% Intermediate Values Tests
+%%--------------------------------------------------------------------
+
+%% Verifies intermediate values are captured for arithmetic, function calls,
+%% and nested expressions like ceil(Size * 35 / 100).
+assert_intermediates_capture(_Config) ->
+    Size1 = 1000,
+    Value1 = 500,
+    try
+        ?assert(Value1 > Size1 * 0.6)
+    catch
+        error:{assert, _}:Stacktrace1 ->
+            Intermediates1 = get_intermediates(Stacktrace1),
+            ?assertEqual(1, length(Intermediates1)),
+            ?assert(lists:member(600.0, intermediate_values(Intermediates1)))
+    end,
+    Items = [],
+    try
+        ?assert(length(Items) > 0)
+    catch
+        error:{assert, _}:Stacktrace2 ->
+            Intermediates2 = get_intermediates(Stacktrace2),
+            ?assert(has_intermediate("length(Items)", Intermediates2)),
+            ?assertEqual(0, get_intermediate("length(Items)", Intermediates2))
+    end,
+    try
+        ?assert(lists:nth(2, [a, b, c]) =:= x)
+    catch
+        error:{assert, _}:Stacktrace3 ->
+            Intermediates3 = get_intermediates(Stacktrace3),
+            ?assert(has_intermediate("lists:nth(2, [a, b, c])", Intermediates3)),
+            ?assertEqual(b, get_intermediate("lists:nth(2, [a, b, c])", Intermediates3))
+    end,
+    Size2 = 1000,
+    Items2 = [a, b, c],
+    try
+        ?assert(length(Items2) * 100 > Size2 div 2)
+    catch
+        error:{assert, _}:Stacktrace4 ->
+            Intermediates4 = get_intermediates(Stacktrace4),
+            ?assert(has_intermediate("length(Items2)", Intermediates4)),
+            ?assertEqual(3, get_intermediate("length(Items2)", Intermediates4)),
+            Values4 = intermediate_values(Intermediates4),
+            ?assert(lists:member(3, Values4)),
+            ?assert(lists:member(300, Values4)),
+            ?assert(lists:member(500, Values4))
+    end,
+    Size3 = 999,
+    Value3 = 200,
+    try
+        ?assert(Value3 > ceil(Size3 * 35 / 100))
+    catch
+        error:{assert, _}:Stacktrace5 ->
+            Intermediates5 = get_intermediates(Stacktrace5),
+            Values5 = intermediate_values(Intermediates5),
+            %% ceil(999 * 35 / 100) = ceil(349.65) = 350
+            ?assert(lists:member(350, Values5)),
+            ?assert(lists:member(349.65, Values5))
+    end.
+
+%% Nested calls must be evaluated exactly once (children-first extraction order).
+assert_nested_calls_evaluated_once(_Config) ->
+    put(call_count, 0),
+    ?assert(length(counted_val([1, 2, 3])) =:= 3),
+    ?assertEqual(1, get(call_count)).
+
+%%--------------------------------------------------------------------
 %% Formatting Output Tests
 %%--------------------------------------------------------------------
 
@@ -348,6 +421,47 @@ format_where(_Config) ->
     ?assert(PinPos > 0),
     ?assert(IntPos > PinPos).
 
+%% Verifies error formatting for comparison errors (with pins and intermediates)
+%% and generic errors.
+format_error_output(_Config) ->
+    X = 5,
+    Y = 10,
+    try
+        ?assert(X > Y)
+    catch
+        error:{assert, _} = E1:Stacktrace1 ->
+            #{reason := Reason1} = wa_assert:format_comparison_error(E1, Stacktrace1),
+            ReasonStr1 = chardata_to_list(Reason1),
+            ?assert(is_list(string:find(ReasonStr1, "X > Y"))),
+            ?assert(is_list(string:find(ReasonStr1, "Where:"))),
+            ?assert(is_list(string:find(ReasonStr1, "'X': 5"))),
+            ?assert(is_list(string:find(ReasonStr1, "'Y': 10"))),
+            ?assert(is_list(string:find(ReasonStr1, "Because:")))
+    end,
+    Size = 1000,
+    Value = 500,
+    try
+        ?assert(Value > Size div 2)
+    catch
+        error:{assert, _} = E2:Stacktrace2 ->
+            #{reason := Reason2} = wa_assert:format_comparison_error(E2, Stacktrace2),
+            ReasonStr2 = chardata_to_list(Reason2),
+            ?assert(is_list(string:find(ReasonStr2, "Where:"))),
+            ?assert(is_list(string:find(ReasonStr2, "'Size': 1000"))),
+            ?assert(is_list(string:find(ReasonStr2, "'Value': 500"))),
+            ?assert(is_list(string:find(ReasonStr2, "500")))
+    end,
+    Items = [a, b],
+    try
+        ?assert(length(Items) > 5)
+    catch
+        error:{assert, _} = E3:Stacktrace3 ->
+            #{reason := Reason3} = wa_assert:format_generic_error(E3, Stacktrace3),
+            ReasonStr3 = chardata_to_list(Reason3),
+            ?assert(is_list(string:find(ReasonStr3, "Where:"))),
+            ?assert(is_list(string:find(ReasonStr3, "'length(Items)': 2")))
+    end.
+
 %%--------------------------------------------------------------------
 %% Internal Helpers
 %%--------------------------------------------------------------------
@@ -358,3 +472,29 @@ actual(X) -> X.
 
 actual_list() -> [1, 2, 3, 4, 5].
 expected_list() -> [1, 5, 3, 2, 4].
+
+counted_val(X) ->
+    put(call_count, get(call_count) + 1),
+    X.
+
+get_intermediates(Stacktrace) ->
+    [{_M, _F, _Args, Info} | _] = Stacktrace,
+    ErrorInfo = proplists:get_value(error_info, Info),
+    #{cause := Cause} = ErrorInfo,
+    maps:get(intermediates, Cause, []).
+
+get_intermediate(Key, Intermediates) ->
+    proplists:get_value(Key, Intermediates).
+
+has_intermediate(Key, Intermediates) ->
+    proplists:is_defined(Key, Intermediates).
+
+intermediate_values(Intermediates) ->
+    [V || {_, V} <- Intermediates].
+
+chardata_to_list(CharData) ->
+    case unicode:characters_to_list(CharData) of
+        List when is_list(List) -> List;
+        {error, _, _} -> [];
+        {incomplete, _, _} -> []
+    end.

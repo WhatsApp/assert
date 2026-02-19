@@ -79,9 +79,10 @@ format_comparison_error(Reason0, [{_M, _F, _Args, Info} | _]) ->
     ErrorInfo = proplists:get_value(error_info, Info),
     #{cause := Cause} = ErrorInfo,
     #{left := Left, right := Right, expression := Expression, operator := Operator, pins := Pins} = Cause,
+    Intermediates = maps:get(intermediates, Cause, []),
     Reason = io_lib:format(
         "~n~nThe following expression failed:~n~n~s~n~nBecause:~n~n~p ~s ~p~ts~n ~p", [
-            Expression, Left, Operator, Right, format_where(Pins, []), Reason0
+            Expression, Left, Operator, Right, format_where(Pins, Intermediates), Reason0
         ]
     ),
     #{general => "Assert", reason => Reason}.
@@ -91,9 +92,10 @@ format_generic_error(Reason0, [{_M, _F, _Args, Info} | _]) ->
     ErrorInfo = proplists:get_value(error_info, Info),
     #{cause := Cause} = ErrorInfo,
     #{expression := Expression, pins := Pins} = Cause,
+    Intermediates = maps:get(intermediates, Cause, []),
     Reason = io_lib:format(
         "~n~nThe following expression failed:~n~n~s~ts~n ~p", [
-            Expression, format_where(Pins, []), Reason0
+            Expression, format_where(Pins, Intermediates), Reason0
         ]
     ),
     #{general => "Assert", reason => Reason}.
