@@ -40,7 +40,8 @@
     assert_equal_with_delta/1,
     assert_comparison_macros_preserve_error_info/1,
     maybe_format_comment/1,
-    format_comment_integration/1
+    format_comment_integration/1,
+    format_where/1
 ]).
 
 all() ->
@@ -60,7 +61,8 @@ all() ->
         assert_equal_with_delta,
         assert_comparison_macros_preserve_error_info,
         maybe_format_comment,
-        format_comment_integration
+        format_comment_integration,
+        format_where
     ].
 
 %%--------------------------------------------------------------------
@@ -320,6 +322,31 @@ format_comment_integration(_Config) ->
     catch
         error:{assert, P3} -> ?assertEqual("failed check", proplists:get_value(comment, P3))
     end.
+
+%%--------------------------------------------------------------------
+%% Formatting Output Tests
+%%--------------------------------------------------------------------
+
+format_where(_Config) ->
+    ?assertEqual("", wa_assert:format_where(#{}, [])),
+    PinsResult = wa_assert:format_where(#{'X' => 5, 'Y' => 10}, []),
+    ?assert(is_list(string:find(PinsResult, "Where:"))),
+    ?assert(is_list(string:find(PinsResult, "'X': 5"))),
+    ?assert(is_list(string:find(PinsResult, "'Y': 10"))),
+    IntResult = wa_assert:format_where(#{}, [{"length(X)", 3}, {"length(X) * 2", 6}]),
+    ?assert(is_list(string:find(IntResult, "Where:"))),
+    %% Intermediates should appear in the order they were passed
+    Pos1 = string:str(IntResult, "'length(X)': 3"),
+    Pos2 = string:str(IntResult, "'length(X) * 2': 6"),
+    ?assert(Pos1 > 0),
+    ?assert(Pos2 > Pos1),
+    BothResult = wa_assert:format_where(#{'X' => [1, 2, 3]}, [{"length(X)", 3}]),
+    ?assert(is_list(string:find(BothResult, "Where:"))),
+    %% Pins come before intermediates
+    PinPos = string:str(BothResult, "'X': [1,2,3]"),
+    IntPos = string:str(BothResult, "'length(X)': 3"),
+    ?assert(PinPos > 0),
+    ?assert(IntPos > PinPos).
 
 %%--------------------------------------------------------------------
 %% Internal Helpers

@@ -16,6 +16,8 @@
 %% erlfmt:ignore
 % @fb-only: -oncall("whatsapp_server_devx").
 -compile(warn_missing_spec_all).
+% elp:ignore W0054 (no_nowarn_suppressions) - helpers are called by the traversal engine added in the next diff
+-compile({nowarn_unused_function, [{get_line, 1}, {is_intermediate, 1}, {contains_short_circuit, 1}]}).
 
 %% Public API
 -export([parse_transform/2, format_error/1]).
@@ -26,6 +28,16 @@
 -define(map_key(A, K, V), {map_field_assoc, A, {atom, A, K}, V}).
 % List from https://www.erlang.org/doc/system/expressions.html#term-comparisons
 -define(COMPARISON_OPERATORS, ['==', '/=', '=<', '<', '>=', '>', '=:=', '=/=']).
+% Arithmetic operators that produce intermediate values to show in errors
+-define(ARITHMETIC_OPERATORS, ['+', '-', '*', '/', 'div', 'rem']).
+% Short-circuit operators where we skip intermediate extraction to avoid
+% breaking short-circuit semantics (RHS may not be evaluated at runtime)
+-define(SHORT_CIRCUIT_OPERATORS, ['orelse', 'andalso']).
+% Performance limits for intermediate extraction
+% elp:ignore W0002 (unused_macro) - used by the traversal engine added in the next diff
+-define(MAX_INTERMEDIATE_DEPTH, 3).
+% elp:ignore W0002 (unused_macro)
+-define(MAX_INTERMEDIATES, 10).
 
 -type tree() :: erl_syntax:syntaxTree().
 
@@ -108,6 +120,18 @@ process_expand_assert([Expr]) ->
             expand_generic(Expr, Pins)
     end.
 
+-spec get_line(tree()) -> non_neg_integer().
+get_line(Expr) ->
+    Anno = erl_syntax:get_pos(Expr),
+    case Anno of
+        N when is_integer(N) -> N;
+        _ ->
+            case erl_anno:is_anno(Anno) of
+                true -> erl_anno:line(Anno);
+                false -> 0
+            end
+    end.
+
 -spec expand_comparison(tree(), tree(), [tree()]) -> tree().
 expand_comparison(Expr, Operator, Pins) ->
     Left = erl_syntax:infix_expr_left(Expr),
@@ -141,6 +165,35 @@ build_result_block(Bindings, BoolExpr, Type, Pins, ExtraFields) ->
         erl_syntax:map_field_assoc(erl_syntax:atom(meta), erl_syntax:map_expr(MetaFields))
     ]),
     erl_syntax:block_expr(Bindings ++ [ResultMap]).
+
+-spec contains_short_circuit(tree()) -> boolean().
+contains_short_circuit(Expr) ->
+    case erl_syntax:type(Expr) of
+        infix_expr ->
+            Op = erl_syntax:operator_name(erl_syntax:infix_expr_operator(Expr)),
+            lists:member(Op, ?SHORT_CIRCUIT_OPERATORS) orelse
+                contains_short_circuit(erl_syntax:infix_expr_left(Expr)) orelse
+                contains_short_circuit(erl_syntax:infix_expr_right(Expr));
+        _ ->
+            lists:any(
+                fun(Group) -> lists:any(fun contains_short_circuit/1, Group) end,
+                erl_syntax:subtrees(Expr)
+            )
+    end.
+
+-spec is_intermediate(tree()) -> boolean().
+is_intermediate(Node) ->
+    case erl_syntax:type(Node) of
+        application ->
+            true;
+        infix_expr ->
+            lists:member(
+                erl_syntax:operator_name(erl_syntax:infix_expr_operator(Node)),
+                ?ARITHMETIC_OPERATORS
+            );
+        _ ->
+            false
+    end.
 
 -spec extract_pins(erl_anno:anno() | erl_anno:location(), tree()) -> [tree()].
 extract_pins(Anno, Expr) ->
