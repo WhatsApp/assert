@@ -51,6 +51,12 @@
     assert_deeply_nested_calls/1,
     assert_mixed_arithmetic_and_calls/1,
     assert_pure_function_repeated/1,
+    assert_short_circuit_orelse_unsafe_rhs/1,
+    assert_short_circuit_andalso_unsafe_rhs/1,
+    assert_short_circuit_lhs_only/1,
+    assert_short_circuit_nested/1,
+    assert_short_circuit_rhs_not_eagerly_evaluated/1,
+    assert_short_circuit_nested_in_call/1,
     format_where/1,
     format_error_output/1,
     format_repeated_calls_output/1,
@@ -86,6 +92,12 @@ all() ->
         assert_deeply_nested_calls,
         assert_mixed_arithmetic_and_calls,
         assert_pure_function_repeated,
+        assert_short_circuit_orelse_unsafe_rhs,
+        assert_short_circuit_andalso_unsafe_rhs,
+        assert_short_circuit_lhs_only,
+        assert_short_circuit_nested,
+        assert_short_circuit_rhs_not_eagerly_evaluated,
+        assert_short_circuit_nested_in_call,
         format_where,
         format_error_output,
         format_repeated_calls_output,
@@ -421,6 +433,19 @@ assert_intermediates_capture(_Config) ->
             Values5 = intermediate_values(Intermediates5),
             ?assert(lists:member(350.0, Values5)),
             ?assert(lists:member(350, Values5))
+    end,
+    %% Short-circuit operators - only LHS intermediates captured
+    Size4 = 1000,
+    Value4 = -1,
+    try
+        ?assert(Value4 > floor(Size4 * 0.15) andalso Value4 < ceil(Size4 * 0.35))
+    catch
+        error:{assert, _}:Stacktrace6 ->
+            Intermediates6 = get_intermediates(Stacktrace6),
+            %% LHS intermediates are captured
+            ?assert(has_intermediate("Size4 * 0.15", Intermediates6)),
+            %% RHS intermediates are not extracted (hoisting would break short-circuit)
+            ?assertNot(has_intermediate("Size4 * 0.35", Intermediates6))
     end.
 
 assert_simple_comparison_no_intermediates(_Config) ->
@@ -680,6 +705,57 @@ format_intermediate_float_short_form(_Config) ->
     Result = wa_assert:format_where(#{}, Intermediates),
     ?assert(is_list(string:find(Result, "285.6"))),
     ?assertEqual(nomatch, string:find(Result, "285.5999999")).
+
+%%--------------------------------------------------------------------
+%% Short-Circuit Safety Tests
+%%--------------------------------------------------------------------
+
+assert_short_circuit_orelse_unsafe_rhs(_Config) ->
+    %% element(1, ok) must not be eagerly evaluated
+    RegRet = ok,
+    ?assert(RegRet =:= ok orelse element(1, RegRet) =:= ok).
+
+assert_short_circuit_andalso_unsafe_rhs(_Config) ->
+    %% hd(not_a_list) must not be eagerly evaluated
+    X = not_a_list,
+    ?assertNot(is_list(X) andalso hd(X) =:= first).
+
+assert_short_circuit_lhs_only(_Config) ->
+    %% Only LHS intermediates are extracted. LHS length(X) is captured.
+    X = [1, 2, 3],
+    try
+        ?assert(length(X) > 10 andalso length(X) < 20)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assert(has_intermediate("length(X)", Intermediates)),
+            ?assertEqual(3, get_intermediate("length(X)", Intermediates))
+    end.
+
+assert_short_circuit_nested(_Config) ->
+    %% Nested short-circuit operators apply safety filtering recursively.
+    X = ok,
+    Y = not_a_list,
+    ?assert(X =:= ok orelse (is_list(Y) andalso hd(Y) =:= first)).
+
+assert_short_circuit_rhs_not_eagerly_evaluated(_Config) ->
+    ?assert(true orelse this_crashes() =:= ok),
+    ?assertNot(false andalso this_crashes() =:= ok).
+
+-spec this_crashes() -> no_return().
+this_crashes() -> error(should_not_be_evaluated).
+
+assert_short_circuit_nested_in_call(_Config) ->
+    %% When short-circuit is nested inside a non-short-circuit expression
+    %% (e.g. a function call), no intermediates are extracted at all.
+    X = 0,
+    try
+        ?assert(foo(X > 0 andalso X < 10) =:= true)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assertEqual([], Intermediates)
+    end.
 
 %%--------------------------------------------------------------------
 %% Internal Helpers

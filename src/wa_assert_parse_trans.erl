@@ -28,8 +28,7 @@
 -define(COMPARISON_OPERATORS, ['==', '/=', '=<', '<', '>=', '>', '=:=', '=/=']).
 % Arithmetic operators that produce intermediate values to show in errors
 -define(ARITHMETIC_OPERATORS, ['+', '-', '*', '/', 'div', 'rem']).
-% Short-circuit operators where we skip intermediate extraction to avoid
-% breaking short-circuit semantics (RHS may not be evaluated at runtime)
+% Short-circuit operators where right side may not be evaluated
 -define(SHORT_CIRCUIT_OPERATORS, ['orelse', 'andalso']).
 % Performance limits for intermediate extraction
 -define(MAX_INTERMEDIATE_DEPTH, 3).
@@ -214,18 +213,52 @@ transform_intermediates(Expr, Line) ->
 -spec transform_intermediates(tree(), non_neg_integer(), non_neg_integer()) ->
     {tree(), [tree()], [tree()], non_neg_integer()}.
 transform_intermediates(Expr, Line, StartN) ->
-    case contains_short_circuit(Expr) of
-        % skip expressions that can short-circuit
+    case is_short_circuit_expr(Expr) of
         true ->
-            {Expr, [], [], StartN};
+            transform_short_circuit(Expr, Line, StartN);
         false ->
-            {TransformedExpr, Bindings, Entries, N} =
-                transform_intermediates_impl(Expr, [], [], Line, StartN, 0),
-            {TransformedExpr, lists:reverse(Bindings), lists:reverse(Entries), N}
+            case contains_short_circuit(Expr) of
+                % skip intermediate collection if there are nested
+                % short-circuit operators, eg: foo(X > 0 andalso Y)
+                true ->
+                    {Expr, [], [], StartN};
+                false ->
+                    {TransformedExpr, Bindings, Entries, N} =
+                        transform_intermediates_impl(Expr, [], [], Line, StartN, 0),
+                    {TransformedExpr, lists:reverse(Bindings), lists:reverse(Entries), N}
+            end
+    end.
+
+%% Handle short-circuit operators: only extract intermediates from LHS.
+%% RHS is left untouched because hoisting would break short-circuit semantics —
+%% the RHS may not be evaluated at runtime, but hoisted bindings always run.
+-spec transform_short_circuit(tree(), non_neg_integer(), non_neg_integer()) ->
+    {tree(), [tree()], [tree()], non_neg_integer()}.
+transform_short_circuit(Expr, Line, StartN) ->
+    Left0 = erl_syntax:infix_expr_left(Expr),
+    Right = erl_syntax:infix_expr_right(Expr),
+    Operator = erl_syntax:infix_expr_operator(Expr),
+
+    {Left, LeftBindings, LeftEntries, N1} = transform_intermediates(Left0, Line, StartN),
+
+    NewExpr = erl_syntax:infix_expr(Left, Operator, Right),
+    {NewExpr, LeftBindings, LeftEntries, N1}.
+
+%% Check if expression is a short-circuit operator at the top level.
+-spec is_short_circuit_expr(tree()) -> boolean().
+is_short_circuit_expr(Expr) ->
+    case erl_syntax:type(Expr) of
+        infix_expr ->
+            Op = erl_syntax:operator_name(erl_syntax:infix_expr_operator(Expr)),
+            lists:member(Op, ?SHORT_CIRCUIT_OPERATORS);
+        _ ->
+            false
     end.
 
 %% Stop extracting intermediates beyond max depth or count to prevent pathological cases.
--spec transform_intermediates_impl(tree(), [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
+-spec transform_intermediates_impl(
+    tree(), [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()
+) ->
     {tree(), [tree()], [tree()], non_neg_integer()}.
 transform_intermediates_impl(Expr, Bindings, Entries, _Line, N, Depth) when
     Depth > ?MAX_INTERMEDIATE_DEPTH; N >= ?MAX_INTERMEDIATES
@@ -278,7 +311,9 @@ transform_intermediates_impl(Expr, Bindings, Entries, Line, N, Depth) ->
             end
     end.
 
--spec transform_subtrees([[tree()]], [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
+-spec transform_subtrees(
+    [[tree()]], [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()
+) ->
     {[[tree()]], [tree()], [tree()], non_neg_integer()}.
 transform_subtrees(Groups, Bindings, Entries, Line, N, Depth) ->
     {RevGroups, FinalBindings, FinalEntries, FinalN} = lists:foldl(
@@ -292,7 +327,9 @@ transform_subtrees(Groups, Bindings, Entries, Line, N, Depth) ->
     ),
     {lists:reverse(RevGroups), FinalBindings, FinalEntries, FinalN}.
 
--spec transform_group([tree()], [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
+-spec transform_group(
+    [tree()], [tree()], [tree()], non_neg_integer(), non_neg_integer(), non_neg_integer()
+) ->
     {[tree()], [tree()], [tree()], non_neg_integer()}.
 transform_group(Group, Bindings, Entries, Line, N, Depth) ->
     {RevChildren, FinalBindings, FinalEntries, FinalN} = lists:foldl(
