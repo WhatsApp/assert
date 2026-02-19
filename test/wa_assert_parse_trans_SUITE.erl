@@ -18,7 +18,7 @@
 % @fb-only: -oncall("whatsapp_server_devx").
 
 -include_lib("common_test/include/ct.hrl").
--include("assert.hrl").
+-include_lib("assert/include/assert.hrl").
 
 %% Test server callbacks
 -export([
