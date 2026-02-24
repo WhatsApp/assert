@@ -118,14 +118,13 @@ extract_pattern(ExtraInfo) ->
 
 -spec extract_bindings([stacktrace_extrainfo()]) -> bindings().
 extract_bindings(ExtraInfo) ->
-    DefaultBindings = orddict:new(),
     try
         ErrorInfo = proplists:get_value(error_info, ExtraInfo),
         #{pins := Pins} = maps:get(cause, ErrorInfo),
-        maps:fold(fun(Key, Value, Acc) -> orddict:store(Key, Value, Acc) end, DefaultBindings, Pins)
+        orddict:from_list(maps:to_list(Pins))
     catch
         _:_:_ ->
-            DefaultBindings
+            orddict:new()
     end.
 
 -spec blame_mfa(module(), atom(), [term()]) -> blame_info().
