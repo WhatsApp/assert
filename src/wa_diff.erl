@@ -357,7 +357,7 @@ safe_to_algebra(#{contents := Contents}, DiffWrapper) ->
         ({true, Content}) ->
             DiffWrapper(Content)
     end,
-    erlfmt_algebra:concat(lists:map(Fun, Contents));
+    erlfmt_algebra:concat([Fun(Elem) || Elem <:- Contents]);
 safe_to_algebra(Literal, _DiffWrapper) ->
     erlfmt_algebra:string(inspect(Literal)).
 
