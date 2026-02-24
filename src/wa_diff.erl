@@ -119,7 +119,7 @@ records(Module) ->
 -spec parse_def(dynamic(), #{{atom(), pos_integer()} => [atom()]}) ->
     #{{atom(), pos_integer()} => [atom()]}.
 parse_def({Name, Fields}, Acc) ->
-    Acc#{{Name, length(Fields)} => lists:map(fun parse_def_field/1, Fields)}.
+    Acc#{{Name, length(Fields)} => [parse_def_field(F) || F <- Fields]}.
 
 -spec parse_def_field(term()) -> atom().
 parse_def_field({record_field, _, {atom, _, Name}}) when is_atom(Name) ->
