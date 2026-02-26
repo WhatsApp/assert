@@ -27,7 +27,7 @@
     to_diff/3
 ]).
 
--export([red/0, green/0, reset/0]).
+-export([red/0, green/0, yellow/0, reset/0]).
 
 -export([format_error/2]).
 
@@ -443,6 +443,10 @@ red() ->
 -spec green() -> binary().
 green() ->
     <<"\e[42m">>.
+
+-spec yellow() -> binary().
+yellow() ->
+    <<"\e[43m">>.
 
 -spec reset() -> binary().
 reset() ->
