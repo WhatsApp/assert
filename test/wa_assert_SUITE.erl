@@ -28,6 +28,7 @@
     assert_equal/1,
     assert_equal_sorted/1,
     assert_match/1,
+    assert_not_match/1,
     assert_comparison/1,
     assert_map_comprehension/1,
     assert_call_with_bindings/1,
@@ -69,6 +70,7 @@ all() ->
         assert_equal,
         assert_equal_sorted,
         assert_match,
+        assert_not_match,
         assert_comparison,
         assert_map_comprehension,
         assert_call_with_bindings,
@@ -119,6 +121,52 @@ assert_equal_sorted(_Config) ->
 assert_match(_Config) ->
     Expected = expected(),
     ?assertException(error, {assertMatch, _}, ?assertMatch(Expected, actual())).
+
+assert_not_match(_Config) ->
+    ok = ?assertNotMatch({error, _}, {ok, 42}),
+    Expected = expected(),
+    ?assertException(error, {assertNotMatch, _}, ?assertNotMatch({ok, Expected}, {ok, 24})),
+    ok = (fun() ->
+        try
+            ?assertNotMatch({ok, Expected}, {ok, 24})
+        catch
+            error:{assertNotMatch, _}:Stacktrace ->
+                [{_M, _F, _Args, Info} | _] = Stacktrace,
+                ErrorInfo = proplists:get_value(error_info, Info),
+                #{cause := Cause} = ErrorInfo,
+                #{pins := Pins} = Cause,
+                ?assertEqual(24, maps:get('Expected', Pins)),
+                ok
+        end
+    end)(),
+    ok = (fun() ->
+        try
+            ?assertNotMatch({ok, _}, {ok, 42}, "should not be ok")
+        catch
+            error:{assertNotMatch, Props}:_ ->
+                ?assertEqual("should not be ok", proplists:get_value(comment, Props)),
+                ok
+        end
+    end)(),
+    %% Complex patterns: map, nested tuple, multiple pins
+    ok = ?assertNotMatch(#{status := error}, #{status => ok, data => 42}),
+    ok = ?assertNotMatch({error, {timeout, _}}, {ok, done}),
+    ok = (fun() ->
+        Status = error,
+        Code = 404,
+        try
+            ?assertNotMatch({Status, Code, _}, {error, 404, "not found"})
+        catch
+            error:{assertNotMatch, _}:Stacktrace2 ->
+                [{_, _, _, Info2} | _] = Stacktrace2,
+                ErrorInfo2 = proplists:get_value(error_info, Info2),
+                #{cause := Cause2} = ErrorInfo2,
+                #{pins := Pins2} = Cause2,
+                ?assertEqual(error, maps:get('Status', Pins2)),
+                ?assertEqual(404, maps:get('Code', Pins2)),
+                ok
+        end
+    end)().
 
 assert_comparison(_Config) ->
     Expected = expected(),
@@ -361,6 +409,12 @@ format_comment_integration(_Config) ->
         ?assert(actual(false), io_lib:format("failed ~p", [check]))
     catch
         error:{assert, P3} -> ?assertEqual("failed check", proplists:get_value(comment, P3))
+    end,
+    %% assertNotMatch with io_lib:format
+    try
+        ?assertNotMatch({ok, _}, {ok, 42}, io_lib:format("unexpected ~p", [ok]))
+    catch
+        error:{assertNotMatch, P4} -> ?assertEqual("unexpected ok", proplists:get_value(comment, P4))
     end.
 
 %%--------------------------------------------------------------------

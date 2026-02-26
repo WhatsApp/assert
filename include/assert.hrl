@@ -133,6 +133,69 @@ end).
     end)())
 end).
 
+-undef(assertNotMatch).
+-define(assertNotMatch(Pattern, Expr), begin
+    ((fun() ->
+        X__V = (Expr),
+        case X__V of
+            Pattern ->
+                R__R =
+                    {assertNotMatch, [
+                        {module, ?MODULE},
+                        {line, ?LINE},
+                        {expression, (??Expr)},
+                        {pattern, (??Pattern)},
+                        {value, X__V}
+                    ]},
+                case
+                    wa_assert:'$assert_match_error_info$'(
+                        case (Expr) of
+                            Pattern -> ok
+                        end
+                    )
+                of
+                    {ok, EI__EI} ->
+                        erlang:error(R__R, none, [{error_info, EI__EI}]);
+                    {error, no_error_info} ->
+                        erlang:error(R__R)
+                end;
+            _ ->
+                ok
+        end
+    end)())
+end).
+-define(assertNotMatch(Pattern, Expr, Comment), begin
+    ((fun() ->
+        X__V = (Expr),
+        case X__V of
+            Pattern ->
+                R__R =
+                    {assertNotMatch, [
+                        {module, ?MODULE},
+                        {line, ?LINE},
+                        {comment, wa_assert:maybe_format_comment((Comment))},
+                        {expression, (??Expr)},
+                        {pattern, (??Pattern)},
+                        {value, X__V}
+                    ]},
+                case
+                    wa_assert:'$assert_match_error_info$'(
+                        case (Expr) of
+                            Pattern -> ok
+                        end
+                    )
+                of
+                    {ok, EI__EI} ->
+                        erlang:error(R__R, none, [{error_info, EI__EI}]);
+                    {error, no_error_info} ->
+                        erlang:error(R__R)
+                end;
+            _ ->
+                ok
+        end
+    end)())
+end).
+
 -undef(assert).
 -ifdef(ELP_ERLANG_SERVICE).
 -define(assert(BoolExpr), begin
