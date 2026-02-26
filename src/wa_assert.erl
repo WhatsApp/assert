@@ -72,7 +72,7 @@ format_error(Reason, [{_M, _F, _Args, Info} | _]) ->
     Cause = maps:get(cause, ErrorInfo),
     Pins = maps:get(pins, Cause),
     Where = format_where(Pins, []),
-    #{general => "Assert", reason => io_lib:format("~n~n~ts ~p", [Where, Reason])}.
+    #{general => "Assert", reason => io_lib:format("~ts~n ~p", [Where, Reason])}.
 
 -spec format_comparison_error(term(), erlang:stacktrace()) -> error_description().
 format_comparison_error(Reason0, [{_M, _F, _Args, Info} | _]) ->
