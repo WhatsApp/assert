@@ -168,20 +168,108 @@ expand_comparison(Expr, Operator, Pins, Line) ->
 
 -spec expand_generic(tree(), [tree()], non_neg_integer()) -> tree().
 expand_generic(Expr, Pins, Line) ->
-    {TransformedExpr, IntermediateBindings, IntermediateEntries} = transform_intermediates(Expr, Line),
-    IntermediateFields =
-        case IntermediateEntries of
-            [] ->
-                [];
-            Entries ->
-                [
-                    erl_syntax:map_field_assoc(
-                        erl_syntax:atom(intermediates),
-                        erl_syntax:list(Entries)
-                    )
-                ]
+    case is_short_circuit_expr(Expr) of
+        true ->
+            expand_generic_short_circuit(Expr, Pins, Line);
+        false ->
+            {TransformedExpr, IntermediateBindings, IntermediateEntries} = transform_intermediates(Expr, Line),
+            IntermediateFields =
+                case IntermediateEntries of
+                    [] ->
+                        [];
+                    Entries ->
+                        [
+                            erl_syntax:map_field_assoc(
+                                erl_syntax:atom(intermediates),
+                                erl_syntax:list(Entries)
+                            )
+                        ]
+                end,
+            build_result_block(IntermediateBindings, TransformedExpr, generic, Pins, IntermediateFields)
+    end.
+
+%% Desugar short-circuit operators into case expressions so that RHS intermediates
+%% are only extracted when the RHS is actually evaluated, preserving short-circuit semantics.
+-spec expand_generic_short_circuit(tree(), [tree()], non_neg_integer()) -> tree().
+expand_generic_short_circuit(Expr, Pins, Line) ->
+    {AllBindings, BoolResultExpr, EntriesExpr, _N} = desugar_short_circuit(Expr, Line, 0),
+    IntermediateFields = [
+        erl_syntax:map_field_assoc(erl_syntax:atom(intermediates), EntriesExpr)
+    ],
+    build_result_block(AllBindings, BoolResultExpr, generic, Pins, IntermediateFields).
+
+%% Recursively desugar a short-circuit expression into nested case expressions.
+%% Returns {Bindings, BoolExpr, EntriesExpr, N} where:
+%%   Bindings    - hoisted match expressions
+%%   BoolExpr    - variable holding the final boolean result
+%%   EntriesExpr - AST expression evaluating to [{string(), term()}]
+%%   N           - next available counter
+-spec desugar_short_circuit(tree(), non_neg_integer(), non_neg_integer()) ->
+    {[tree()], tree(), tree(), non_neg_integer()}.
+desugar_short_circuit(Expr, Line, StartN) ->
+    Left0 = erl_syntax:infix_expr_left(Expr),
+    Right0 = erl_syntax:infix_expr_right(Expr),
+    Op = erl_syntax:operator_name(erl_syntax:infix_expr_operator(Expr)),
+    {Left, LhsBindings, LhsEntries, N1} = transform_intermediates(Left0, Line, StartN),
+    {RhsEvalBody, N2} = build_rhs_eval_body(Right0, Line, N1),
+    LhsResultVar = sc_var(Line, N2),
+    BoolResultVar = sc_var(Line, N2 + 1),
+    RhsEntriesVar = sc_var(Line, N2 + 2),
+    N3 = N2 + 3,
+    LhsResultBinding = erl_syntax:match_expr(LhsResultVar, Left),
+    %% EvalPat: LHS value that triggers RHS evaluation (true for andalso, false for orelse)
+    %% SkipVal: LHS value that short-circuits, also the overall result in that case
+    {EvalPat, SkipVal} =
+        case Op of
+            'andalso' -> {erl_syntax:atom(true), erl_syntax:atom(false)};
+            'orelse' -> {erl_syntax:atom(false), erl_syntax:atom(true)}
         end,
-    build_result_block(IntermediateBindings, TransformedExpr, generic, Pins, IntermediateFields).
+    CaseExpr = erl_syntax:case_expr(LhsResultVar, [
+        erl_syntax:clause([EvalPat], none, RhsEvalBody),
+        erl_syntax:clause([SkipVal], none, [
+            erl_syntax:tuple([SkipVal, erl_syntax:list([])])
+        ])
+    ]),
+    CaseBinding = erl_syntax:match_expr(
+        erl_syntax:tuple([BoolResultVar, RhsEntriesVar]),
+        CaseExpr
+    ),
+    AllBindings = LhsBindings ++ [LhsResultBinding, CaseBinding],
+    %% Combine LHS and RHS intermediate entries into a single list expression.
+    %% RhsEntriesVar is populated at runtime by the case branch that executed.
+    EntriesExpr =
+        case LhsEntries of
+            [] ->
+                RhsEntriesVar;
+            _ ->
+                erl_syntax:infix_expr(
+                    erl_syntax:list(LhsEntries),
+                    erl_syntax:operator('++'),
+                    RhsEntriesVar
+                )
+        end,
+    {AllBindings, BoolResultVar, EntriesExpr, N3}.
+
+%% Build the body expressions for the eval branch of a short-circuit case.
+%% If the RHS is itself a short-circuit, recurse; otherwise extract intermediates normally.
+-spec build_rhs_eval_body(tree(), non_neg_integer(), non_neg_integer()) ->
+    {[tree()], non_neg_integer()}.
+build_rhs_eval_body(Right0, Line, N) ->
+    case is_short_circuit_expr(Right0) of
+        true ->
+            {InnerBindings, InnerBoolExpr, InnerEntriesExpr, N2} =
+                desugar_short_circuit(Right0, Line, N),
+            {InnerBindings ++ [erl_syntax:tuple([InnerBoolExpr, InnerEntriesExpr])], N2};
+        false ->
+            {Right, RhsBindings, RhsEntries, N2} = transform_intermediates(Right0, Line, N),
+            {RhsBindings ++ [erl_syntax:tuple([Right, erl_syntax:list(RhsEntries)])], N2}
+    end.
+
+-spec sc_var(non_neg_integer(), non_neg_integer()) -> tree().
+sc_var(Line, N) ->
+    erl_syntax:variable(
+        list_to_atom("ShortCircuit__" ++ integer_to_list(Line) ++ "_" ++ integer_to_list(N))
+    ).
 
 -spec build_result_block([tree()], tree(), atom(), [tree()], [tree()]) -> tree().
 build_result_block(Bindings, BoolExpr, Type, Pins, ExtraFields) ->

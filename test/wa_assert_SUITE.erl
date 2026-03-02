@@ -52,12 +52,14 @@
     assert_deeply_nested_calls/1,
     assert_mixed_arithmetic_and_calls/1,
     assert_pure_function_repeated/1,
-    assert_short_circuit_orelse_unsafe_rhs/1,
-    assert_short_circuit_andalso_unsafe_rhs/1,
-    assert_short_circuit_lhs_only/1,
-    assert_short_circuit_nested/1,
     assert_short_circuit_rhs_not_eagerly_evaluated/1,
+    assert_short_circuit_nested/1,
     assert_short_circuit_nested_in_call/1,
+    assert_short_circuit_rhs_intermediates/1,
+    assert_short_circuit_rhs_skipped_no_intermediates/1,
+    assert_short_circuit_rhs_crash_preserved/1,
+    assert_short_circuit_nested_intermediates/1,
+    assert_short_circuit_mixed_operators/1,
     format_where/1,
     format_error_output/1,
     format_repeated_calls_output/1,
@@ -94,12 +96,14 @@ all() ->
         assert_deeply_nested_calls,
         assert_mixed_arithmetic_and_calls,
         assert_pure_function_repeated,
-        assert_short_circuit_orelse_unsafe_rhs,
-        assert_short_circuit_andalso_unsafe_rhs,
-        assert_short_circuit_lhs_only,
-        assert_short_circuit_nested,
         assert_short_circuit_rhs_not_eagerly_evaluated,
+        assert_short_circuit_nested,
         assert_short_circuit_nested_in_call,
+        assert_short_circuit_rhs_intermediates,
+        assert_short_circuit_rhs_skipped_no_intermediates,
+        assert_short_circuit_rhs_crash_preserved,
+        assert_short_circuit_nested_intermediates,
+        assert_short_circuit_mixed_operators,
         format_where,
         format_error_output,
         format_repeated_calls_output,
@@ -487,19 +491,6 @@ assert_intermediates_capture(_Config) ->
             Values5 = intermediate_values(Intermediates5),
             ?assert(lists:member(350.0, Values5)),
             ?assert(lists:member(350, Values5))
-    end,
-    %% Short-circuit operators - only LHS intermediates captured
-    Size4 = 1000,
-    Value4 = -1,
-    try
-        ?assert(Value4 > floor(Size4 * 0.15) andalso Value4 < ceil(Size4 * 0.35))
-    catch
-        error:{assert, _}:Stacktrace6 ->
-            Intermediates6 = get_intermediates(Stacktrace6),
-            %% LHS intermediates are captured
-            ?assert(has_intermediate("Size4 * 0.15", Intermediates6)),
-            %% RHS intermediates are not extracted (hoisting would break short-circuit)
-            ?assertNot(has_intermediate("Size4 * 0.35", Intermediates6))
     end.
 
 assert_simple_comparison_no_intermediates(_Config) ->
@@ -764,40 +755,23 @@ format_intermediate_float_short_form(_Config) ->
 %% Short-Circuit Safety Tests
 %%--------------------------------------------------------------------
 
-assert_short_circuit_orelse_unsafe_rhs(_Config) ->
-    %% element(1, ok) must not be eagerly evaluated
-    RegRet = ok,
-    ?assert(RegRet =:= ok orelse element(1, RegRet) =:= ok).
-
-assert_short_circuit_andalso_unsafe_rhs(_Config) ->
-    %% hd(not_a_list) must not be eagerly evaluated
-    X = not_a_list,
-    ?assertNot(is_list(X) andalso hd(X) =:= first).
-
-assert_short_circuit_lhs_only(_Config) ->
-    %% Only LHS intermediates are extracted. LHS length(X) is captured.
-    X = [1, 2, 3],
-    try
-        ?assert(length(X) > 10 andalso length(X) < 20)
-    catch
-        error:{assert, _}:Stacktrace ->
-            Intermediates = get_intermediates(Stacktrace),
-            ?assert(has_intermediate("length(X)", Intermediates)),
-            ?assertEqual(3, get_intermediate("length(X)", Intermediates))
-    end.
-
-assert_short_circuit_nested(_Config) ->
-    %% Nested short-circuit operators apply safety filtering recursively.
-    X = ok,
-    Y = not_a_list,
-    ?assert(X =:= ok orelse (is_list(Y) andalso hd(Y) =:= first)).
-
 assert_short_circuit_rhs_not_eagerly_evaluated(_Config) ->
+    %% orelse: RHS not evaluated when LHS is true
+    RegRet = ok,
+    ?assert(RegRet =:= ok orelse element(1, RegRet) =:= ok),
     ?assert(true orelse this_crashes() =:= ok),
+    %% andalso: RHS not evaluated when LHS is false
+    X = not_a_list,
+    ?assertNot(is_list(X) andalso hd(X) =:= first),
     ?assertNot(false andalso this_crashes() =:= ok).
 
 -spec this_crashes() -> no_return().
 this_crashes() -> error(should_not_be_evaluated).
+
+assert_short_circuit_nested(_Config) ->
+    X = ok,
+    Y = not_a_list,
+    ?assert(X =:= ok orelse (is_list(Y) andalso hd(Y) =:= first)).
 
 assert_short_circuit_nested_in_call(_Config) ->
     %% When short-circuit is nested inside a non-short-circuit expression
@@ -809,6 +783,84 @@ assert_short_circuit_nested_in_call(_Config) ->
         error:{assert, _}:Stacktrace ->
             Intermediates = get_intermediates(Stacktrace),
             ?assertEqual([], Intermediates)
+    end.
+
+assert_short_circuit_rhs_intermediates(_Config) ->
+    %% andalso: when LHS is true, RHS is evaluated and its intermediates are captured.
+    Size = 1000,
+    Value = 200,
+    try
+        ?assert(Value > floor(Size * 0.15) andalso Value < ceil(Size * 0.05))
+    catch
+        error:{assert, _}:Stacktrace1 ->
+            Intermediates1 = get_intermediates(Stacktrace1),
+            ?assert(has_intermediate("Size * 0.15", Intermediates1)),
+            ?assert(has_intermediate("floor(Size * 0.15)", Intermediates1)),
+            ?assert(has_intermediate("Size * 0.05", Intermediates1)),
+            ?assert(has_intermediate("ceil(Size * 0.05)", Intermediates1)),
+            ?assertEqual(50.0, get_intermediate("Size * 0.05", Intermediates1)),
+            ?assertEqual(50, get_intermediate("ceil(Size * 0.05)", Intermediates1))
+    end,
+    %% orelse: when LHS is false, RHS is evaluated and intermediates captured.
+    try
+        ?assert(Value < floor(Size * 0.05) orelse Value > ceil(Size * 0.95))
+    catch
+        error:{assert, _}:Stacktrace2 ->
+            Intermediates2 = get_intermediates(Stacktrace2),
+            ?assert(has_intermediate("Size * 0.05", Intermediates2)),
+            ?assert(has_intermediate("floor(Size * 0.05)", Intermediates2)),
+            ?assert(has_intermediate("Size * 0.95", Intermediates2)),
+            ?assert(has_intermediate("ceil(Size * 0.95)", Intermediates2))
+    end.
+
+assert_short_circuit_rhs_skipped_no_intermediates(_Config) ->
+    %% When short-circuit skips the RHS, no RHS intermediates are captured.
+    Size = 1000,
+    Value = -1,
+    try
+        ?assert(Value > floor(Size * 0.15) andalso Value < ceil(Size * 0.35))
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assert(has_intermediate("Size * 0.15", Intermediates)),
+            ?assertNot(has_intermediate("Size * 0.35", Intermediates))
+    end.
+
+assert_short_circuit_rhs_crash_preserved(_Config) ->
+    %% When the RHS crashes legitimately, the exception propagates cleanly.
+    X = [1, 2, 3],
+    ?assertException(
+        error,
+        badarith,
+        ?assert(length(X) > 0 andalso 1 / crash_divisor(X) > 0)
+    ).
+
+assert_short_circuit_nested_intermediates(_Config) ->
+    %% A andalso B andalso C: all three levels should capture intermediates.
+    %% Parsed as A andalso (B andalso C) due to right-associativity.
+    X = [1, 2, 3, 4, 5],
+    try
+        ?assert(length(X) > 0 andalso length(X) > 10 andalso length(X) > 100)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            Keys = [K || {K, _} <- Intermediates],
+            ?assertEqual(["length(X)"], lists:usort(Keys)),
+            ?assertEqual(5, get_intermediate("length(X)", Intermediates))
+    end.
+
+assert_short_circuit_mixed_operators(_Config) ->
+    %% Mixed andalso/orelse: A andalso B orelse C
+    %% Parsed as (A andalso B) orelse C due to precedence.
+    %% A=true, B=false => (A andalso B)=false => C evaluated.
+    X = [1, 2, 3],
+    try
+        ?assert(length(X) > 0 andalso length(X) > 10 orelse length(X) > 100)
+    catch
+        error:{assert, _}:Stacktrace ->
+            Intermediates = get_intermediates(Stacktrace),
+            ?assert(has_intermediate("length(X)", Intermediates)),
+            ?assertEqual(3, get_intermediate("length(X)", Intermediates))
     end.
 
 %%--------------------------------------------------------------------
@@ -838,6 +890,8 @@ outer(X) -> X.
 foo(X) -> X.
 bar(X) -> X.
 baz(X) -> X.
+
+crash_divisor(X) -> length(X) - 3.
 
 get_intermediates(Stacktrace) ->
     [{_M, _F, _Args, Info} | _] = Stacktrace,
