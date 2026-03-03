@@ -148,7 +148,7 @@ format_value(Value) when is_float(Value) ->
 format_value(Value) ->
     lists:flatten(io_lib:format("~p", [Value])).
 
--spec maybe_format_comment(Comment) -> Comment when Comment :: term().
+-spec maybe_format_comment(term()) -> term().
 maybe_format_comment(Comment) when is_list(Comment) ->
     try
         lists:flatten(io_lib:format("~s", [Comment]))
