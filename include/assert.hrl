@@ -279,6 +279,87 @@ end).
 end).
 -endif.
 
+-undef(assertNot).
+-ifdef(ELP_ERLANG_SERVICE).
+-define(assertNot(BoolExpr), begin
+    (fun() ->
+        case (BoolExpr) of
+            false -> ok;
+            _ -> erlang:error(assertion_failed)
+        end
+    end)()
+end).
+-else.
+-define(assertNot(BoolExpr), begin
+    ((fun() ->
+        X__F = not is_process_alive(self()),
+        #{bool_expr := BoolExpr__BoolExpr, meta := Meta__Meta} = wa_assert:'$expand_assert$'((BoolExpr)),
+        case BoolExpr__BoolExpr of
+            X__F ->
+                ok;
+            X__V ->
+                R__R =
+                    {assert, [
+                        {module, ?MODULE},
+                        {line, ?LINE},
+                        {expression, (??BoolExpr)},
+                        {expected, false},
+                        case not X__F of
+                            X__V -> {value, true};
+                            _ -> {not_boolean, X__V}
+                        end
+                    ]},
+                case wa_assert:assert_error_info(??BoolExpr, Meta__Meta) of
+                    {ok, EI__EI} ->
+                        erlang:error(R__R, none, [{error_info, EI__EI}]);
+                    {error, no_error_info} ->
+                        erlang:error(R__R)
+                end
+        end
+    end)())
+end).
+-endif.
+-ifdef(ELP_ERLANG_SERVICE).
+-define(assertNot(BoolExpr, Comment), begin
+    (fun() ->
+        case (BoolExpr) of
+            false -> ok;
+            _ -> erlang:error(wa_assert:maybe_format_comment(Comment))
+        end
+    end)()
+end).
+-else.
+-define(assertNot(BoolExpr, Comment), begin
+    ((fun() ->
+        X__F = not is_process_alive(self()),
+        #{bool_expr := BoolExpr__BoolExpr, meta := Meta__Meta} = wa_assert:'$expand_assert$'((BoolExpr)),
+        case BoolExpr__BoolExpr of
+            X__F ->
+                ok;
+            X__V ->
+                R__R =
+                    {assert, [
+                        {module, ?MODULE},
+                        {line, ?LINE},
+                        {comment, wa_assert:maybe_format_comment((Comment))},
+                        {expression, (??BoolExpr)},
+                        {expected, false},
+                        case not X__F of
+                            X__V -> {value, true};
+                            _ -> {not_boolean, X__V}
+                        end
+                    ]},
+                case wa_assert:assert_error_info(??BoolExpr, Meta__Meta) of
+                    {ok, EI__EI} ->
+                        erlang:error(R__R, none, [{error_info, EI__EI}]);
+                    {error, no_error_info} ->
+                        erlang:error(R__R)
+                end
+        end
+    end)())
+end).
+-endif.
+
 -define(assertEqualSorted(ExpectedList, ActualList),
     ?assertEqual(lists:sort(ExpectedList), lists:sort(ActualList))
 ).

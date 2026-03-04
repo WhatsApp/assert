@@ -32,6 +32,7 @@
     assert_comparison/1,
     assert_map_comprehension/1,
     assert_call_with_bindings/1,
+    assert_not_comparison_error_info/1,
     assert_greater_than/1,
     assert_less_than/1,
     assert_greater_than_or_equal/1,
@@ -76,6 +77,7 @@ all() ->
         assert_comparison,
         assert_map_comprehension,
         assert_call_with_bindings,
+        assert_not_comparison_error_info,
         assert_greater_than,
         assert_less_than,
         assert_greater_than_or_equal,
@@ -190,6 +192,33 @@ assert_map_comprehension(_Config) ->
 assert_call_with_bindings(_Config) ->
     Expected = expected(),
     ?assertException(error, {assert, _}, ?assert(lists:member(Expected, [actual()]))).
+
+assert_not_comparison_error_info(_Config) ->
+    X = 10,
+    Y = 5,
+    try
+        ?assertNot(X > Y)
+    catch
+        error:{assert, Props}:Stacktrace ->
+            ?assertEqual(false, proplists:get_value(expected, Props)),
+            [{_M, _F, _Args, Info} | _] = Stacktrace,
+            ErrorInfo = proplists:get_value(error_info, Info),
+            #{cause := Cause, module := wa_assert, function := format_comparison_error} = ErrorInfo,
+            #{left := 10, right := 5, operator := '>'} = Cause
+    end,
+    Items = [1, 2, 3],
+    try
+        ?assertNot(length(Items) =:= 3)
+    catch
+        error:{assert, Props2}:Stacktrace2 ->
+            ?assertEqual(false, proplists:get_value(expected, Props2)),
+            Intermediates = get_intermediates(Stacktrace2),
+            ?assert(has_intermediate("length(Items)", Intermediates)),
+            ?assertEqual(3, get_intermediate("length(Items)", Intermediates))
+    end,
+    ?assertNot(false),
+    ?assertNot(1 > 2),
+    ?assertNot(lists:member(x, [a, b, c])).
 
 %%--------------------------------------------------------------------
 %% Comparison Assertion Tests
@@ -419,6 +448,12 @@ format_comment_integration(_Config) ->
         ?assertNotMatch({ok, _}, {ok, 42}, io_lib:format("unexpected ~p", [ok]))
     catch
         error:{assertNotMatch, P4} -> ?assertEqual("unexpected ok", proplists:get_value(comment, P4))
+    end,
+    %% assertNot with io_lib:format
+    try
+        ?assertNot(true, io_lib:format("got ~p", [true]))
+    catch
+        error:{assert, P5} -> ?assertEqual("got true", proplists:get_value(comment, P5))
     end.
 
 %%--------------------------------------------------------------------
