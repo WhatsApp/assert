@@ -308,8 +308,7 @@ expand_tuple([Name | Values], #{records := Records} = _Context) when is_atom(Nam
         not_found ->
             not_found;
         Fields ->
-            Pairs = lists:zip(Fields, Values),
-            {Name, maps:from_list(Pairs)}
+            {Name, #{K => V || K <:- Fields && V <:- Values}}
     end;
 expand_tuple(_, _) ->
     not_found.
