@@ -94,9 +94,7 @@ format_generic_error(Reason0, [{_M, _F, _Args, Info} | _]) ->
     #{expression := Expression, pins := Pins} = Cause,
     Intermediates = maps:get(intermediates, Cause, []),
     Reason = io_lib:format(
-        "~n~nThe following expression failed:~n~n~s~ts~n ~p", [
-            Expression, format_where(Pins, Intermediates), Reason0
-        ]
+        "~n~nThe following expression failed:~n~n~s~ts~n ~p", [Expression, format_where(Pins, Intermediates), Reason0]
     ),
     #{general => "Assert", reason => Reason}.
 

@@ -104,9 +104,7 @@ records(Module) ->
         File when is_list(File) ->
             case erl_prim_loader:get_file(File) of
                 {ok, Beam, File} ->
-                    {ok, {_Mod, [{abstract_code, {_Version, Forms}}]}} = beam_lib:chunks(Beam, [
-                        abstract_code
-                    ]),
+                    {ok, {_Mod, [{abstract_code, {_Version, Forms}}]}} = beam_lib:chunks(Beam, [abstract_code]),
                     Defs = [D || {attribute, _, record, D} <- Forms],
                     lists:foldl(fun parse_def/2, #{}, Defs);
                 _ ->

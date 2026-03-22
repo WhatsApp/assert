@@ -226,9 +226,7 @@ desugar_short_circuit(Expr, Line, StartN) ->
         end,
     CaseExpr = erl_syntax:case_expr(LhsResultVar, [
         erl_syntax:clause([EvalPat], none, RhsEvalBody),
-        erl_syntax:clause([SkipVal], none, [
-            erl_syntax:tuple([SkipVal, erl_syntax:list([])])
-        ])
+        erl_syntax:clause([SkipVal], none, [erl_syntax:tuple([SkipVal, erl_syntax:list([])])])
     ]),
     CaseBinding = erl_syntax:match_expr(
         erl_syntax:tuple([BoolResultVar, RhsEntriesVar]),

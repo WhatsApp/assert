@@ -92,9 +92,7 @@ get_records(Module) ->
         File when is_list(File) ->
             case erl_prim_loader:get_file(File) of
                 {ok, Beam, File} ->
-                    {ok, {_Mod, [{abstract_code, {_Version, Forms}}]}} = beam_lib:chunks(Beam, [
-                        abstract_code
-                    ]),
+                    {ok, {_Mod, [{abstract_code, {_Version, Forms}}]}} = beam_lib:chunks(Beam, [abstract_code]),
                     [Record || {attribute, _, record, _} = Record <- Forms];
                 _ ->
                     []
