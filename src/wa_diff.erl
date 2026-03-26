@@ -33,6 +33,8 @@
 
 -export([glue/3, join_docs/2]).
 
+-export_type([supported_input/0]).
+
 -type diff() :: #{equivalent := boolean(), left := side(), right := side()}.
 -type side() ::
     contents()
