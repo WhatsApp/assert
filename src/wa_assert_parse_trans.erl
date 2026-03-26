@@ -224,10 +224,13 @@ desugar_short_circuit(Expr, Line, StartN) ->
             'andalso' -> {erl_syntax:atom(true), erl_syntax:atom(false)};
             'orelse' -> {erl_syntax:atom(false), erl_syntax:atom(true)}
         end,
-    CaseExpr = erl_syntax:case_expr(LhsResultVar, [
-        erl_syntax:clause([EvalPat], none, RhsEvalBody),
-        erl_syntax:clause([SkipVal], none, [erl_syntax:tuple([SkipVal, erl_syntax:list([])])])
-    ]),
+    CaseExpr = erl_syntax:case_expr(
+        LhsResultVar,
+        [
+            erl_syntax:clause([EvalPat], none, RhsEvalBody),
+            erl_syntax:clause([SkipVal], none, [erl_syntax:tuple([SkipVal, erl_syntax:list([])])])
+        ]
+    ),
     CaseBinding = erl_syntax:match_expr(
         erl_syntax:tuple([BoolResultVar, RhsEntriesVar]),
         CaseExpr
