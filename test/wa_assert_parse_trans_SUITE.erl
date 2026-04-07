@@ -55,7 +55,7 @@ parse_transform_expand_assert(Config) ->
 %%--------------------------------------------------------------------
 
 file_path(Name, Config) ->
-    DataDir = ?config(data_dir, Config),
+    DataDir = proplists:get_value(data_dir, Config),
     filename:join([DataDir, Name]).
 
 assert_parse_transform(Source, Expected0) ->
