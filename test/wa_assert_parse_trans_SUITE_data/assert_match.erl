@@ -19,12 +19,9 @@
 -export([match/2]).
 
 match(Pattern, Expr) ->
-    erlang:error(
-        {assertMatch, [{value, Expr}]},
-        none,
-        wa_assert:'$assert_match_error_info$'(
-            case (Expr) of
-                Pattern -> ok
-            end
-        )
+    wa_assert:'$assert_match_error_info$'(
+        case Expr of
+            Pattern -> ok;
+            X__V -> erlang:error({assertMatch, [{value, X__V}]})
+        end
     ).

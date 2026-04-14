@@ -88,16 +88,48 @@ transform_expr(Expr) ->
             Expr
     end.
 
--spec process_assert_match_error_info(erl_anno:anno() | erl_anno:location(), [tree()]) -> tuple().
-process_assert_match_error_info(Anno, [Expr0]) ->
-    Pattern0 = extract_pattern(Expr0),
-    PatternStr = {string, Anno, format_expr(Pattern0)},
-    Pins = extract_pins(Anno, Pattern0),
-    PinsVar = {var, Anno, 'Pins'},
-    {block, Anno, [
-        {match, Anno, PinsVar, {map, Anno, Pins}},
-        ?call(Anno, ?WA_ASSERT, error_info, [PatternStr, PinsVar])
-    ]}.
+-spec process_assert_match_error_info(erl_anno:anno() | erl_anno:location(), [tree()]) -> tree().
+process_assert_match_error_info(Anno, [CaseExpr]) ->
+    %% Extract pattern from first clause of the case expression
+    [FirstClause | _] = erl_syntax:case_expr_clauses(CaseExpr),
+    [Pattern] = erl_syntax:clause_patterns(FirstClause),
+    PatternStr = {string, Anno, format_expr(Pattern)},
+    Pins = extract_pins(Anno, Pattern),
+    PinsMap = {map, Anno, Pins},
+    ErrorInfoCall = ?call(Anno, ?WA_ASSERT, error_info, [PatternStr, PinsMap]),
+    %% Rewrite clauses: erlang:error/1 -> erlang:error/3 with error_info
+    Clauses = erl_syntax:case_expr_clauses(CaseExpr),
+    NewClauses = [rewrite_error_in_clause(Anno, C, ErrorInfoCall) || C <- Clauses],
+    erl_syntax:revert(
+        erl_syntax:case_expr(erl_syntax:case_expr_argument(CaseExpr), NewClauses)
+    ).
+
+-spec rewrite_error_in_clause(erl_anno:anno() | erl_anno:location(), tree(), tree()) -> tree().
+rewrite_error_in_clause(Anno, Clause, ErrorInfoCall) ->
+    Body = erl_syntax:clause_body(Clause),
+    NewBody = [rewrite_erlang_error(Anno, Expr, ErrorInfoCall) || Expr <- Body],
+    erl_syntax:clause(
+        erl_syntax:clause_patterns(Clause),
+        erl_syntax:clause_guard(Clause),
+        NewBody
+    ).
+
+-spec rewrite_erlang_error(erl_anno:anno() | erl_anno:location(), tree(), tree()) -> tree().
+rewrite_erlang_error(Anno, Expr, ErrorInfoCall) ->
+    case erl_syntax:type(Expr) of
+        application ->
+            case erl_syntax_lib:analyze_application(Expr) of
+                {erlang, {error, 1}} ->
+                    [ErrorTuple] = erl_syntax:application_arguments(Expr),
+                    ?call(Anno, erlang, error, [
+                        erl_syntax:revert(ErrorTuple), {atom, Anno, none}, erl_syntax:revert(ErrorInfoCall)
+                    ]);
+                _ ->
+                    Expr
+            end;
+        _ ->
+            Expr
+    end.
 
 -spec process_expand_assert([tree()]) -> tree().
 process_expand_assert([Expr]) ->
@@ -465,17 +497,6 @@ is_intermediate(Node) ->
 extract_pins(Anno, Expr) ->
     Attrs = erl_syntax:get_ann(Expr),
     pins(Anno, Attrs).
-
--spec extract_pattern(tree()) -> tree().
-extract_pattern(Expr) ->
-    case erl_syntax:type(Expr) of
-        case_expr ->
-            [Clause] = erl_syntax:case_expr_clauses(Expr),
-            [Pattern] = erl_syntax:clause_patterns(Clause),
-            Pattern;
-        _ ->
-            throw(erl_syntax:error_marker({assert_match, Expr}))
-    end.
 
 -spec pins(erl_anno:anno() | erl_anno:location(), dynamic()) -> [tuple()].
 pins(Anno, Attrs) ->

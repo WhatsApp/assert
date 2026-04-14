@@ -2,9 +2,11 @@
 -module(assert_match).
 -export([match/2]).
 match(Pattern, Expr) ->
-    erlang:error({assertMatch, [{value, Expr}]},
-                 none,
-                 begin
-                     Pins = #{'Pattern' => Pattern},
-                     wa_assert:error_info("Pattern", Pins)
-                 end).
+    case Expr of
+        Pattern -> ok;
+        X__V ->
+            erlang:error({assertMatch, [{value, X__V}]},
+                         none,
+                         wa_assert:error_info("Pattern",
+                                              #{'Pattern' => Pattern}))
+    end.

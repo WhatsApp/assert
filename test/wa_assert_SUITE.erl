@@ -65,7 +65,8 @@
     format_error_output/1,
     format_repeated_calls_output/1,
     variable_collision_regression/1,
-    format_intermediate_float_short_form/1
+    format_intermediate_float_short_form/1,
+    assert_match_expr_with_bindings/1
 ]).
 
 all() ->
@@ -110,7 +111,8 @@ all() ->
         format_error_output,
         format_repeated_calls_output,
         variable_collision_regression,
-        format_intermediate_float_short_form
+        format_intermediate_float_short_form,
+        assert_match_expr_with_bindings
     ].
 
 %%--------------------------------------------------------------------
@@ -897,6 +899,34 @@ assert_short_circuit_mixed_operators(_Config) ->
             ?assert(has_intermediate("length(X)", Intermediates)),
             ?assertEqual(3, get_intermediate("length(X)", Intermediates))
     end.
+
+%%--------------------------------------------------------------------
+%% Double-Bind Regression Test
+%%--------------------------------------------------------------------
+
+%% Verifies that Expr and Pattern arguments containing variable bindings
+%% do not cause double-binding warnings, as each is pasted only once.
+assert_match_expr_with_bindings(_Config) ->
+    %% Expr that binds a variable via case
+    ?assertMatch(
+        {ok, _},
+        case 1 of
+            X -> {ok, X}
+        end
+    ),
+    %% Expr that binds a variable via begin block
+    ?assertMatch({ok, _}, begin
+        Y = 1,
+        {ok, Y}
+    end),
+    %% assertNotMatch with binding Expr
+    ?assertNotMatch(
+        {error, _},
+        case 1 of
+            Z -> {ok, Z}
+        end
+    ),
+    ok.
 
 %%--------------------------------------------------------------------
 %% Internal Helpers

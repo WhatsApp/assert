@@ -158,9 +158,9 @@ maybe_format_comment(Comment) ->
 
 %% These are only used as markers for the parse transform, but they are defined nonetheless to avoid
 %% warnings about unused functions.
--spec '$assert_match_error_info$'(term()) -> [].
-'$assert_match_error_info$'(_Expression) ->
-    [].
+-spec '$assert_match_error_info$'(T) -> T.
+'$assert_match_error_info$'(Result) ->
+    Result.
 
 -spec '$expand_assert$'(term()) -> #{bool_expr := term(), meta := meta()}.
 '$expand_assert$'(Expression) ->

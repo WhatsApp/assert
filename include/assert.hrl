@@ -69,51 +69,43 @@ end).
 -undef(assertMatch).
 -define(assertMatch(Pattern, Expr), begin
     ((fun() ->
-        case (Expr) of
-            Pattern ->
-                ok;
-            X__V ->
-                erlang:error(
-                    {assertMatch, [
-                        {module, ?MODULE},
-                        {line, ?LINE},
-                        {expression, (??Expr)},
-                        {pattern, (??Pattern)},
-                        {value, X__V}
-                    ]},
-                    none,
-                    wa_assert:'$assert_match_error_info$'(
-                        case (Expr) of
-                            Pattern -> ok
-                        end
+        wa_assert:'$assert_match_error_info$'(
+            case (Expr) of
+                Pattern ->
+                    ok;
+                X__V ->
+                    erlang:error(
+                        {assertMatch, [
+                            {module, ?MODULE},
+                            {line, ?LINE},
+                            {expression, (??Expr)},
+                            {pattern, (??Pattern)},
+                            {value, X__V}
+                        ]}
                     )
-                )
-        end
+            end
+        )
     end)())
 end).
 -define(assertMatch(Pattern, Expr, Comment), begin
     ((fun() ->
-        case (Expr) of
-            Pattern ->
-                ok;
-            X__V ->
-                erlang:error(
-                    {assertMatch, [
-                        {module, ?MODULE},
-                        {line, ?LINE},
-                        {comment, wa_assert:maybe_format_comment((Comment))},
-                        {expression, (??Expr)},
-                        {pattern, (??Pattern)},
-                        {value, X__V}
-                    ]},
-                    none,
-                    wa_assert:'$assert_match_error_info$'(
-                        case (Expr) of
-                            Pattern -> ok
-                        end
+        wa_assert:'$assert_match_error_info$'(
+            case (Expr) of
+                Pattern ->
+                    ok;
+                X__V ->
+                    erlang:error(
+                        {assertMatch, [
+                            {module, ?MODULE},
+                            {line, ?LINE},
+                            {comment, wa_assert:maybe_format_comment((Comment))},
+                            {expression, (??Expr)},
+                            {pattern, (??Pattern)},
+                            {value, X__V}
+                        ]}
                     )
-                )
-        end
+            end
+        )
     end)())
 end).
 
@@ -121,52 +113,44 @@ end).
 -define(assertNotMatch(Pattern, Expr), begin
     ((fun() ->
         X__V = (Expr),
-        case X__V of
-            Pattern ->
-                erlang:error(
-                    {assertNotMatch, [
-                        {module, ?MODULE},
-                        {line, ?LINE},
-                        {expression, (??Expr)},
-                        {pattern, (??Pattern)},
-                        {value, X__V}
-                    ]},
-                    none,
-                    wa_assert:'$assert_match_error_info$'(
-                        case (Expr) of
-                            Pattern -> ok
-                        end
-                    )
-                );
-            _ ->
-                ok
-        end
+        wa_assert:'$assert_match_error_info$'(
+            case X__V of
+                Pattern ->
+                    erlang:error(
+                        {assertNotMatch, [
+                            {module, ?MODULE},
+                            {line, ?LINE},
+                            {expression, (??Expr)},
+                            {pattern, (??Pattern)},
+                            {value, X__V}
+                        ]}
+                    );
+                _ ->
+                    ok
+            end
+        )
     end)())
 end).
 -define(assertNotMatch(Pattern, Expr, Comment), begin
     ((fun() ->
         X__V = (Expr),
-        case X__V of
-            Pattern ->
-                erlang:error(
-                    {assertNotMatch, [
-                        {module, ?MODULE},
-                        {line, ?LINE},
-                        {comment, wa_assert:maybe_format_comment((Comment))},
-                        {expression, (??Expr)},
-                        {pattern, (??Pattern)},
-                        {value, X__V}
-                    ]},
-                    none,
-                    wa_assert:'$assert_match_error_info$'(
-                        case (Expr) of
-                            Pattern -> ok
-                        end
-                    )
-                );
-            _ ->
-                ok
-        end
+        wa_assert:'$assert_match_error_info$'(
+            case X__V of
+                Pattern ->
+                    erlang:error(
+                        {assertNotMatch, [
+                            {module, ?MODULE},
+                            {line, ?LINE},
+                            {comment, wa_assert:maybe_format_comment((Comment))},
+                            {expression, (??Expr)},
+                            {pattern, (??Pattern)},
+                            {value, X__V}
+                        ]}
+                    );
+                _ ->
+                    ok
+            end
+        )
     end)())
 end).
 
