@@ -28,7 +28,7 @@
             X__X ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assertEqual, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -36,12 +36,9 @@
                         {expected, X__X},
                         {value, X__V}
                     ]},
-                case wa_diff:error_info(?MODULE, X__X, X__V) of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                    none,
+                    wa_diff:error_info(?MODULE, X__X, X__V)
+                )
         end
     end)())
 end).
@@ -53,7 +50,7 @@ end).
             X__X ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assertEqual, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -62,12 +59,9 @@ end).
                         {expected, X__X},
                         {value, X__V}
                     ]},
-                case wa_diff:error_info(?MODULE, X__X, X__V) of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                    none,
+                    wa_diff:error_info(?MODULE, X__X, X__V)
+                )
         end
     end)())
 end).
@@ -79,7 +73,7 @@ end).
             Pattern ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assertMatch, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -87,18 +81,13 @@ end).
                         {pattern, (??Pattern)},
                         {value, X__V}
                     ]},
-                case
+                    none,
                     wa_assert:'$assert_match_error_info$'(
                         case (Expr) of
                             Pattern -> ok
                         end
                     )
-                of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                )
         end
     end)())
 end).
@@ -108,7 +97,7 @@ end).
             Pattern ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assertMatch, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -117,18 +106,13 @@ end).
                         {pattern, (??Pattern)},
                         {value, X__V}
                     ]},
-                case
+                    none,
                     wa_assert:'$assert_match_error_info$'(
                         case (Expr) of
                             Pattern -> ok
                         end
                     )
-                of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                )
         end
     end)())
 end).
@@ -139,7 +123,7 @@ end).
         X__V = (Expr),
         case X__V of
             Pattern ->
-                R__R =
+                erlang:error(
                     {assertNotMatch, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -147,18 +131,13 @@ end).
                         {pattern, (??Pattern)},
                         {value, X__V}
                     ]},
-                case
+                    none,
                     wa_assert:'$assert_match_error_info$'(
                         case (Expr) of
                             Pattern -> ok
                         end
                     )
-                of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end;
+                );
             _ ->
                 ok
         end
@@ -169,7 +148,7 @@ end).
         X__V = (Expr),
         case X__V of
             Pattern ->
-                R__R =
+                erlang:error(
                     {assertNotMatch, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -178,18 +157,13 @@ end).
                         {pattern, (??Pattern)},
                         {value, X__V}
                     ]},
-                case
+                    none,
                     wa_assert:'$assert_match_error_info$'(
                         case (Expr) of
                             Pattern -> ok
                         end
                     )
-                of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end;
+                );
             _ ->
                 ok
         end
@@ -216,7 +190,7 @@ end).
             X__T ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assert, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -227,12 +201,9 @@ end).
                             _ -> {not_boolean, X__V}
                         end
                     ]},
-                case wa_assert:assert_error_info(??BoolExpr, Meta__Meta) of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                    none,
+                    wa_assert:assert_error_info(??BoolExpr, Meta__Meta)
+                )
         end
     end)())
 end).
@@ -256,7 +227,7 @@ end).
             X__T ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assert, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -268,12 +239,9 @@ end).
                             _ -> {not_boolean, X__V}
                         end
                     ]},
-                case wa_assert:assert_error_info(??BoolExpr, Meta__Meta) of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                    none,
+                    wa_assert:assert_error_info(??BoolExpr, Meta__Meta)
+                )
         end
     end)())
 end).
@@ -298,7 +266,7 @@ end).
             X__F ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assert, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -309,12 +277,9 @@ end).
                             _ -> {not_boolean, X__V}
                         end
                     ]},
-                case wa_assert:assert_error_info(??BoolExpr, Meta__Meta) of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                    none,
+                    wa_assert:assert_error_info(??BoolExpr, Meta__Meta)
+                )
         end
     end)())
 end).
@@ -337,7 +302,7 @@ end).
             X__F ->
                 ok;
             X__V ->
-                R__R =
+                erlang:error(
                     {assert, [
                         {module, ?MODULE},
                         {line, ?LINE},
@@ -349,12 +314,9 @@ end).
                             _ -> {not_boolean, X__V}
                         end
                     ]},
-                case wa_assert:assert_error_info(??BoolExpr, Meta__Meta) of
-                    {ok, EI__EI} ->
-                        erlang:error(R__R, none, [{error_info, EI__EI}]);
-                    {error, no_error_info} ->
-                        erlang:error(R__R)
-                end
+                    none,
+                    wa_assert:assert_error_info(??BoolExpr, Meta__Meta)
+                )
         end
     end)())
 end).

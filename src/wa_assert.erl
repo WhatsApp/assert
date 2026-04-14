@@ -53,18 +53,18 @@
 -type generic_meta() :: #{type := generic, pins := pins(), intermediates => intermediates()}.
 -type meta() :: comparison_meta() | generic_meta().
 
--spec assert_error_info(string(), meta()) -> {ok, error_info(assert_cause())} | {error, no_error_info}.
+-spec assert_error_info(string(), meta()) -> [{error_info, error_info(assert_cause())}].
 assert_error_info(Expression, #{type := comparison} = Meta) ->
-    {ok, #{module => ?MODULE, function => format_comparison_error, cause => Meta#{expression => Expression}}};
+    [{error_info, #{module => ?MODULE, function => format_comparison_error, cause => Meta#{expression => Expression}}}];
 assert_error_info(Expression, #{type := generic} = Meta) ->
-    {ok, #{module => ?MODULE, function => format_generic_error, cause => Meta#{expression => Expression}}};
+    [{error_info, #{module => ?MODULE, function => format_generic_error, cause => Meta#{expression => Expression}}}];
 assert_error_info(_Expression, _Meta) ->
-    {error, no_error_info}.
+    [].
 
--spec error_info(string(), pins()) -> {ok, error_info(match_cause())}.
+-spec error_info(string(), pins()) -> [{error_info, error_info(match_cause())}].
 error_info(Pattern, Pins) ->
     Cause = #{pins => Pins, pattern => Pattern},
-    {ok, #{module => ?MODULE, function => format_error, cause => Cause}}.
+    [{error_info, #{module => ?MODULE, function => format_error, cause => Cause}}].
 
 -spec format_error(term(), erlang:stacktrace()) -> error_description().
 format_error(Reason, [{_M, _F, _Args, Info} | _]) ->
@@ -158,9 +158,9 @@ maybe_format_comment(Comment) ->
 
 %% These are only used as markers for the parse transform, but they are defined nonetheless to avoid
 %% warnings about unused functions.
--spec '$assert_match_error_info$'(term()) -> {error, no_error_info}.
+-spec '$assert_match_error_info$'(term()) -> [].
 '$assert_match_error_info$'(_Expression) ->
-    {error, no_error_info}.
+    [].
 
 -spec '$expand_assert$'(term()) -> #{bool_expr := term(), meta := meta()}.
 '$expand_assert$'(Expression) ->

@@ -65,7 +65,7 @@
 
 -define(TIMEOUT, 1000).
 
--spec error_info(module(), dynamic(), dynamic()) -> {ok, error_info()} | {error, no_error_info}.
+-spec error_info(module(), dynamic(), dynamic()) -> [{error_info, error_info()}].
 error_info(Module, Left0, Right0) ->
     try
         Self = self(),
@@ -81,14 +81,14 @@ error_info(Module, Left0, Right0) ->
         ),
         receive
             {Ref, ErrorInfo} ->
-                {ok, ErrorInfo}
+                [{error_info, ErrorInfo}]
         after ?TIMEOUT ->
             ?LOG_INFO(
                 "[wa_diff] Timeout while extracting diff. Please report this bug at https://github.com/whatsapp/assert.~n~p",
                 [{Left0, Right0}],
                 #{domain => wa_diff}
             ),
-            {error, no_error_info}
+            []
         end
     catch
         Class:Reason:StackTrace ->
@@ -97,7 +97,7 @@ error_info(Module, Left0, Right0) ->
                 [erl_error:format_exception(Class, Reason, StackTrace)],
                 #{domain => wa_diff}
             ),
-            {error, no_error_info}
+            []
     end.
 
 -spec records(atom()) -> #{{atom(), pos_integer()} => [atom()]}.
