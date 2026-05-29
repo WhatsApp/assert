@@ -62,7 +62,7 @@ transform_expr(Expr) ->
                 {?WA_ASSERT, {'$assert_match_error_info$', 1}} ->
                     Anno = erl_syntax:get_pos(Expr),
                     case erl_anno:generated(Anno) of
-                        % Do nothing if this code is annoted by generated
+                        % Do nothing if this code is annotated by generated
                         % Likely a result of another parse transform
                         true ->
                             Expr;
@@ -74,7 +74,7 @@ transform_expr(Expr) ->
                 {?WA_ASSERT, {'$expand_assert$', 1}} ->
                     Anno = erl_syntax:get_pos(Expr),
                     case erl_anno:generated(Anno) of
-                        % Do nothing if this code is annoted by generated
+                        % Do nothing if this code is annotated by generated
                         % Likely a result of another parse transform
                         true ->
                             Expr;
