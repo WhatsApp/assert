@@ -383,7 +383,7 @@ error_info(Reason, [{M, F, Args, _Meta} | _] = StackTrace) ->
             {error, no_error_info}
     end.
 
--spec match_expression(tree()) -> tuple().
+-spec match_expression(tree()) -> {match, erl_anno:anno(), dynamic(), dynamic()}.
 match_expression(Pattern) ->
     Anno = erl_anno:new(0),
     {match, Anno, Pattern, {var, Anno, '$VAR$'}}.
