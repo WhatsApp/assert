@@ -147,7 +147,7 @@ To add `assert` to your rebar3 project, simply add it to the `deps` in your `reb
 
 ## Requirements
 
-`assert` requires Erlang/OTP 26.
+`assert` requires Erlang/OTP 27.
 
 ## License
 `assert` is Apache 2.0 licensed, as found in the [LICENSE](LICENSE.md) file.

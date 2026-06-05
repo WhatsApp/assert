@@ -308,7 +308,7 @@ expand_tuple([Name | Values], #{records := Records} = _Context) when is_atom(Nam
         not_found ->
             not_found;
         Fields ->
-            {Name, #{K => V || K <:- Fields && V <:- Values}}
+            {Name, maps:from_list(lists:zip(Fields, Values))}
     end;
 expand_tuple(_, _) ->
     not_found.
@@ -356,7 +356,7 @@ safe_to_algebra(#{contents := Contents}, DiffWrapper) ->
         ({true, Content}) ->
             DiffWrapper(Content)
     end,
-    erlfmt_algebra:concat([Fun(Elem) || Elem <:- Contents]);
+    erlfmt_algebra:concat([Fun(Elem) || Elem <- Contents]);
 safe_to_algebra(Literal, _DiffWrapper) ->
     erlfmt_algebra:string(inspect(Literal)).
 
