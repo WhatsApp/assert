@@ -259,7 +259,7 @@ binaries(_Config) ->
         "<<\"Look\nThere are- Multilines\n-\">>",
         "<<\"Look\nThere are+Multi lines+\">>"
     ),
-    assert_diff(<<"κόσμε">>, <<"κόσμε">>),
+    assert_diff(<<"κόσμε"/utf8>>, <<"κόσμε"/utf8>>),
     refute_diff(<<"same_old">>, <<"same_new">>, "<<\"same_-old-\">>", "<<\"same_+new+\">>"),
     refute_diff(
         term_to_binary({one, one, three}),
