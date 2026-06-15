@@ -46,57 +46,38 @@ all() ->
 
 compute(_Config) ->
     ?assertEqual(
-        #{
-            left => #{contents => [{true, <<"1">>}]},
-            right => #{contents => [{true, <<"2">>}]},
-            equivalent => false
-        },
+        {diff, #{contents => [{true, <<"1">>}]}, #{contents => [{true, <<"2">>}]}},
         wa_diff:compute(1, 2)
     ),
     ?assertEqual(
-        #{
-            left => #{contents => [{false, <<"1">>}]},
-            right => #{contents => [{true, <<"2">>}, {false, <<"1">>}]},
-            equivalent => false
-        },
+        {diff, #{contents => [{false, <<"1">>}]}, #{contents => [{true, <<"2">>}, {false, <<"1">>}]}},
         wa_diff:compute(1, 21)
     ),
     ?assertEqual(
-        #{
-            left => {1},
-            right => {1},
-            equivalent => true
-        },
+        {eq, {1}},
         wa_diff:compute({1}, {1})
     ),
     ?assertEqual(
-        #{
-            left => {tuple, [], [#{contents => [{true, <<"1">>}]}]},
-            right => {tuple, [], [#{contents => [{true, <<"2">>}]}]},
-            equivalent => false
-        },
+        {diff, {tuple, [], [#{contents => [{true, <<"1">>}]}]}, {tuple, [], [#{contents => [{true, <<"2">>}]}]}},
         wa_diff:compute({1}, {2})
     ),
     ?assertEqual(
-        #{
-            left => {tuple, [], [1]},
-            right =>
-                {tuple, [], [
-                    1, {'__block__', [{diff, true}], [2]}, {'__block__', [{diff, true}], [3]}
-                ]},
-            equivalent => false
-        },
+        {diff, {tuple, [], [{eq, 1}]},
+            {tuple, [], [
+                {eq, 1},
+                {'__block__', [{diff, true}], [{literal, 2}]},
+                {'__block__', [{diff, true}], [{literal, 3}]}
+            ]}},
         wa_diff:compute({1}, {1, 2, 3})
     ),
     ?assertEqual(
-        #{
-            left => {map, [], [{a, 1}]},
-            right =>
-                {map, [], [
-                    {a, 1}, {'__block__', [{diff, true}], [{struct_item, b, <<" => ">>, 2}]}
-                ]},
-            equivalent => false
-        },
+        {diff, {map, [], [{a, {eq, 1}}]},
+            {map, [], [
+                {a, {eq, 1}},
+                {'__block__', [{diff, true}], [
+                    {struct_item, {literal, b}, <<" => ">>, {literal, 2}}
+                ]}
+            ]}},
         wa_diff:compute(#{a => 1}, #{a => 1, b => 2})
     ).
 
@@ -350,18 +331,14 @@ assertions(_Config) ->
 %% Internal Helpers
 %%--------------------------------------------------------------------
 assert_diff(Left, Right) ->
-    Diff = wa_diff:compute(Left, Right, ?MODULE),
-    ?assert(maps:get(equivalent, Diff)).
+    ?assertMatch({eq, _}, wa_diff:compute(Left, Right, ?MODULE)).
 
 refute_diff(Left, Right, ExpectedLeft, ExpectedRight) ->
     Diff = wa_diff:compute(Left, Right, ?MODULE),
-    ?assertNot(maps:get(equivalent, Diff)),
-    {ok, DiffLeft} = wa_diff:to_diff(
-        maps:get(left, Diff), ~"-", ~"-"
-    ),
-    {ok, DiffRight} = wa_diff:to_diff(
-        maps:get(right, Diff), ~"+", ~"+"
-    ),
+    ?assertMatch({diff, _, _}, Diff),
+    {diff, LeftSide, RightSide} = Diff,
+    {ok, DiffLeft} = wa_diff:to_diff(LeftSide, ~"-", ~"-"),
+    {ok, DiffRight} = wa_diff:to_diff(RightSide, ~"+", ~"+"),
     ?assertEqual(ExpectedLeft, DiffLeft),
     ?assertEqual(ExpectedRight, DiffRight).
 

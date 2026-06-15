@@ -75,15 +75,14 @@ powered by the [diffy](https://github.com/zotonic/diffy) implementation of
 [Neil Fraser's match-and-patch algorithm](https://neil.fraser.name/writing/diff/),
 it provides a way to diff Erlang data types such as maps, records, lists, tuples and more.
 
-The main entry point is the `compute/2` function which, given two values, produces *left* and *right* parts:
+The main entry point is the `compute/2` function which, given two values,
+produces either `{eq, Value}` when the two values are equivalent, or a
+`{diff, Left, Right}` tuple holding the *left* and *right* parts:
 
 ```erlang
-> #{left := Left, right := Right, equivalent := Equivalent} = wa_diff:compute(#{one => 1, two => 2}, #{one => 1, two => 3}).
-#{left =>
-      {map,[],[{one,1},{two,#{contents => [{true,<<"2">>}]}}]},
-  right =>
-      {map,[],[{one,1},{two,#{contents => [{true,<<"3">>}]}}]},
-  equivalent => false}
+> {diff, Left, Right} = wa_diff:compute(#{one => 1, two => 2}, #{one => 1, two => 3}).
+{diff,{map,[],[{one,{eq,1}},{two,#{contents => [{true,<<"2">>}]}}]},
+      {map,[],[{one,{eq,1}},{two,#{contents => [{true,<<"3">>}]}}]}}
 ```
 
 Each part can then be rendered via the `to_diff/3` function. For example:

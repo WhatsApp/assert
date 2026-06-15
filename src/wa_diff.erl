@@ -24,7 +24,8 @@
     error_info/3,
     compute/2, compute/3,
     to_algebra/2,
-    to_diff/3
+    to_diff/3,
+    to_sides/1
 ]).
 
 -export([red/0, green/0, yellow/0, reset/0]).
@@ -33,20 +34,24 @@
 
 -export([glue/3, join_docs/2]).
 
--export_type([supported_input/0]).
+-export_type([supported_input/0, diff/0, side/0]).
 
--type diff() :: #{equivalent := boolean(), left := side(), right := side()}.
+-type diff() :: {eq, supported_input()} | {diff, side(), side()}.
 -type side() ::
     contents()
-    | literal()
+    | {literal, literal()}
     | {container_type(), meta(), [side()]}
     | block()
-    | {struct_type(), meta(), [side()]}
-    | struct_item().
+    | {struct_type(), meta(), [struct_arg()]}
+    | struct_item()
+    | {eq, supported_input()}.
+%% A struct (map/record) carries either a `{Key, ValueSide}` pair for keys
+%% present on both sides, or a whole-item `block()` for keys present on one side.
+-type struct_arg() :: {supported_input(), side()} | block().
 -type contents() :: #{contents := [content()]}.
 -type content() :: {boolean(), binary()}.
 -type literal() :: number() | atom() | binary() | string().
--type block() :: {'__block__', meta(), [supported_input()]}.
+-type block() :: {'__block__', meta(), [side()]}.
 -type meta() :: [{diff, boolean()}].
 -type script() :: diffy:diffs().
 -type doc() :: erlfmt_algebra:doc().
@@ -72,9 +77,9 @@ error_info(Module, Left0, Right0) ->
         Ref = make_ref(),
         spawn(
             fun() ->
-                Diff = compute(Left0, Right0, Module),
-                {ok, Left} = to_diff(maps:get(left, Diff), red(), reset()),
-                {ok, Right} = to_diff(maps:get(right, Diff), green(), reset()),
+                {LeftSide, RightSide} = to_sides(compute(Left0, Right0, Module)),
+                {ok, Left} = to_diff(LeftSide, red(), reset()),
+                {ok, Right} = to_diff(RightSide, green(), reset()),
                 Cause = #{left => Left, right => Right},
                 Self ! {Ref, #{module => ?MODULE, function => format_error, cause => Cause}}
             end
@@ -149,6 +154,12 @@ compute(Left, Right, Module) ->
 to_algebra(Side, DiffWrapper) ->
     wrap_on_diff(Side, fun safe_to_algebra/2, DiffWrapper).
 
+-spec to_sides(diff()) -> {side(), side()}.
+to_sides({eq, Same}) ->
+    {{eq, Same}, {eq, Same}};
+to_sides({diff, Left, Right}) ->
+    {Left, Right}.
+
 -spec format_error(term(), erlang:stacktrace()) -> error_description().
 format_error(Reason, [{_M, _F, _Args, Info} | _]) ->
     ErrorInfo = proplists:get_value(error_info, Info, #{}),
@@ -162,7 +173,7 @@ format_error(Reason, [{_M, _F, _Args, Info} | _]) ->
 
 -spec diff_value(supported_input(), supported_input(), context()) -> diff().
 diff_value(Same, Same, _Context) ->
-    #{equivalent => true, left => Same, right => Same};
+    {eq, Same};
 diff_value(Left, Right, _Context) when is_number(Left), is_number(Right) ->
     diff_literal(Left, Right);
 diff_value(Left, Right, _Context) when is_atom(Left), is_atom(Right) ->
@@ -199,9 +210,9 @@ is_printable(Binary) ->
 
 -spec non_recursive_diff_value(supported_input(), supported_input()) -> diff().
 non_recursive_diff_value(Left0, Right0) ->
-    Left = update_diff_meta(Left0, true),
-    Right = update_diff_meta(Right0, true),
-    #{equivalent => false, left => Left, right => Right}.
+    Left = update_diff_meta(value_to_side(Left0), true),
+    Right = update_diff_meta(value_to_side(Right0), true),
+    {diff, Left, Right}.
 
 -spec diff_literal(literal(), literal()) -> diff().
 diff_literal(Left, Right) ->
@@ -210,42 +221,36 @@ diff_literal(Left, Right) ->
 -spec diff_string(binary(), binary()) -> diff().
 diff_string(Left, Right) ->
     Script = diffy:diff(Left, Right),
-    string_script_to_diff(Script, true, [], []).
+    string_script_to_diff(Script, [], []).
 
 -spec diff_container(container_type(), [supported_input()], [supported_input()], context()) ->
     diff().
 diff_container(Type, Left, Right, Context) ->
-    diff_container(Type, Left, Right, true, [], [], Context).
+    diff_container(Type, Left, Right, [], [], Context).
 
 -spec diff_container(
     container_type(),
     [supported_input()],
     [supported_input()],
-    boolean(),
     [side()],
     [side()],
     context()
 ) ->
     diff().
-diff_container(Type, [HLeft | TLeft], [HRight | TRight], Equivalent0, AccLeft, AccRight, Context) ->
-    #{equivalent := Equivalent, left := Left, right := Right} = diff_value(HLeft, HRight, Context),
+diff_container(Type, [HLeft | TLeft], [HRight | TRight], AccLeft, AccRight, Context) ->
+    {Left, Right} = to_sides(diff_value(HLeft, HRight, Context)),
     diff_container(
         Type,
         TLeft,
         TRight,
-        Equivalent0 andalso Equivalent,
         [Left | AccLeft],
         [Right | AccRight],
         Context
     );
-diff_container(Type, Left0, Right0, Equivalent, AccLeft, AccRight, _Context) ->
-    Left = [update_diff_meta(L, true) || L <- Left0],
-    Right = [update_diff_meta(L, true) || L <- Right0],
-    #{
-        equivalent => Equivalent andalso Left =:= [] andalso Right =:= [],
-        left => {Type, [], lists:reverse(AccLeft, Left)},
-        right => {Type, [], lists:reverse(AccRight, Right)}
-    }.
+diff_container(Type, Left0, Right0, AccLeft, AccRight, _Context) ->
+    Left = [update_diff_meta(value_to_side(L), true) || L <- Left0],
+    Right = [update_diff_meta(value_to_side(L), true) || L <- Right0],
+    {diff, {Type, [], lists:reverse(AccLeft, Left)}, {Type, [], lists:reverse(AccRight, Right)}}.
 
 -spec diff_struct(
     struct_type(),
@@ -255,25 +260,25 @@ diff_container(Type, Left0, Right0, Equivalent, AccLeft, AccRight, _Context) ->
 ) -> diff().
 diff_struct(Type, Left0, Right0, Context) ->
     Acc0 = {
-        _Equivalent = true,
         _AccLeft = [],
         _AccRight = [],
         _PendingLeft = [],
         _PendingRight = Right0
     },
-    Fun = fun(LeftKey, LeftValue, {Equivalent0, AccLeft, AccRight, PendingLeft0, PendingRight0}) ->
+    Fun = fun(LeftKey, LeftValue, {AccLeft, AccRight, PendingLeft0, PendingRight0}) ->
         case maps:take(LeftKey, PendingRight0) of
             error ->
                 PendingLeft = [
-                    update_diff_meta({struct_item, LeftKey, divider(Type), LeftValue}, true)
+                    update_diff_meta(
+                        {struct_item, value_to_side(LeftKey), divider(Type), value_to_side(LeftValue)},
+                        true
+                    )
                     | PendingLeft0
                 ],
-                {false, AccLeft, AccRight, PendingLeft, PendingRight0};
+                {AccLeft, AccRight, PendingLeft, PendingRight0};
             {RightValue, PendingRight} ->
-                Diff = diff_value(LeftValue, RightValue, Context),
-                #{equivalent := Equivalent, left := Left, right := Right} = Diff,
+                {Left, Right} = to_sides(diff_value(LeftValue, RightValue, Context)),
                 {
-                    Equivalent0 andalso Equivalent,
                     [{LeftKey, Left} | AccLeft],
                     [{LeftKey, Right} | AccRight],
                     PendingLeft0,
@@ -281,12 +286,14 @@ diff_struct(Type, Left0, Right0, Context) ->
                 }
         end
     end,
-    {AccEquivalent, AccLeft, AccRight, PendingLeft, PendingRight0} = maps:fold(Fun, Acc0, Left0),
-    PendingRight = [update_diff_meta({struct_item, K, divider(Type), V}, true) || K := V <- PendingRight0],
-    Equivalent = AccEquivalent andalso (maps:size(PendingRight0) =:= 0),
+    {AccLeft, AccRight, PendingLeft, PendingRight0} = maps:fold(Fun, Acc0, Left0),
+    PendingRight = [
+        update_diff_meta({struct_item, value_to_side(K), divider(Type), value_to_side(V)}, true)
+     || K := V <- PendingRight0
+    ],
     Left = lists:sort(AccLeft) ++ lists:sort(PendingLeft),
     Right = lists:sort(AccRight) ++ lists:sort(PendingRight),
-    #{equivalent => Equivalent, left => {Type, [], Left}, right => {Type, [], Right}}.
+    {diff, {Type, [], Left}, {Type, [], Right}}.
 
 -spec divider(struct_type()) -> delimiter().
 divider(map) -> <<" => ">>;
@@ -313,9 +320,17 @@ expand_tuple([Name | Values], #{records := Records} = _Context) when is_atom(Nam
 expand_tuple(_, _) ->
     not_found.
 
--spec update_diff_meta(supported_input(), boolean()) -> block().
+-spec update_diff_meta(side(), boolean()) -> block().
 update_diff_meta(Value, true) ->
     {'__block__', [{diff, true}], [Value]}.
+
+%% Wrap a raw value as a leaf side(): scalars become tagged literals,
+%% compound terms (tuples, maps) are rendered whole via the `eq` tag.
+-spec value_to_side(supported_input()) -> side().
+value_to_side(Value) when is_number(Value); is_atom(Value); is_binary(Value) ->
+    {literal, Value};
+value_to_side(Value) ->
+    {eq, Value}.
 
 -spec inspect(term()) -> binary().
 inspect(Term) ->
@@ -357,14 +372,16 @@ safe_to_algebra(#{contents := Contents}, DiffWrapper) ->
             DiffWrapper(Content)
     end,
     erlfmt_algebra:concat([Fun(Elem) || Elem <- Contents]);
-safe_to_algebra(Literal, _DiffWrapper) ->
+safe_to_algebra({eq, Value}, _DiffWrapper) ->
+    erlfmt_algebra:string(inspect(Value));
+safe_to_algebra({literal, Literal}, _DiffWrapper) ->
     erlfmt_algebra:string(inspect(Literal)).
 
--spec with_struct_divider(side() | {side(), side()}, delimiter()) -> side().
+-spec with_struct_divider(block() | {supported_input(), side()}, delimiter()) -> side().
 with_struct_divider({K, V}, Divider) ->
-    {struct_item, K, Divider, V};
-with_struct_divider(Side, _Divider) ->
-    Side.
+    {struct_item, value_to_side(K), Divider, V};
+with_struct_divider(Block, _Divider) ->
+    Block.
 
 -spec container_to_algebra(delimiter(), [side()], delimiter(), wrapper_fun(), fun((side(), wrapper_fun()) -> doc())) ->
     doc().
@@ -406,20 +423,16 @@ wrap_on_diff(Side, Fun, DiffWrapper) ->
 extract_diff_meta({'__block__', [{diff, true}], [Literal]}) -> {Literal, true};
 extract_diff_meta(Other) -> {Other, false}.
 
--spec string_script_to_diff(script(), boolean(), [{boolean(), binary()}], [{boolean(), binary()}]) ->
+-spec string_script_to_diff(script(), [{boolean(), binary()}], [{boolean(), binary()}]) ->
     diff().
-string_script_to_diff([], Equivalent, Left, Right) ->
-    #{
-        equivalent => Equivalent,
-        left => #{contents => lists:reverse(Left)},
-        right => #{contents => lists:reverse(Right)}
-    };
-string_script_to_diff([{equal, String} | Tail], Equivalent, Left0, Right0) ->
-    string_script_to_diff(Tail, Equivalent, [{false, String} | Left0], [{false, String} | Right0]);
-string_script_to_diff([{delete, String} | Tail], _Equivalent, Left0, Right0) ->
-    string_script_to_diff(Tail, false, [{true, String} | Left0], Right0);
-string_script_to_diff([{insert, String} | Tail], _Equivalent, Left0, Right0) ->
-    string_script_to_diff(Tail, false, Left0, [{true, String} | Right0]).
+string_script_to_diff([], Left, Right) ->
+    {diff, #{contents => lists:reverse(Left)}, #{contents => lists:reverse(Right)}};
+string_script_to_diff([{equal, String} | Tail], Left0, Right0) ->
+    string_script_to_diff(Tail, [{false, String} | Left0], [{false, String} | Right0]);
+string_script_to_diff([{delete, String} | Tail], Left0, Right0) ->
+    string_script_to_diff(Tail, [{true, String} | Left0], Right0);
+string_script_to_diff([{insert, String} | Tail], Left0, Right0) ->
+    string_script_to_diff(Tail, Left0, [{true, String} | Right0]).
 
 -spec to_diff(side(), doc(), doc()) -> {ok, string()} | {error, term()}.
 to_diff(Side, Pre, Post) ->
