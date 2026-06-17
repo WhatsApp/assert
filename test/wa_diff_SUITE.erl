@@ -325,7 +325,7 @@ assertions(_Config) ->
     Actual = identity(#{
         a => [{1, one}, {2, two}, {3, three}], b => [{4, four}, {5, five}, {6, six}]
     }),
-    ?assertEqual(Actual, Expected).
+    ?assertEqual(Expected, Actual).
 
 %%--------------------------------------------------------------------
 %% Internal Helpers
