@@ -10,7 +10,7 @@ what is wrong when an error occurs. The library includes:
 
 | File                       | Description                                                                                                                                          |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [assert.hrl](#assert-hrl)  | An improved, compatible, versions of Erlang/OTP stdlib's assert macros.                                                                              |
+| [assert.hrl](#assert-hrl)  | An improved, compatible version of Erlang/OTP stdlib's assert macros.                                                                               |
 | [wa\_diff.erl](#wa-diff)   | A structural diffing library for Erlang, inspired by Elixir's [ExUnit.Assertions](https://hexdocs.pm/ex_unit/1.12.3/ExUnit.Assertions.html) library. |
 | [wa\_blame.erl](#wa-blame) | Exception blaming for Erlang, inspired by Elixir's [Exception](https://hexdocs.pm/elixir/1.6.5/Exception.html) behaviour.                            |
 
