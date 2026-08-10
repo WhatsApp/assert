@@ -16,8 +16,6 @@
 %% erlfmt:ignore
 % @fb-only: -oncall("whatsapp_server_devx").
 
--include_lib("assert/include/assert.hrl").
-
 %% Test server callbacks
 -export([
     all/0
@@ -37,6 +35,8 @@
     records/1,
     assertions/1
 ]).
+
+-include_lib("assert/include/assert.hrl").
 
 all() ->
     [compute, integers, floats, tuples, maps, lists, atoms, strings, binaries, records, assertions].

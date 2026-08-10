@@ -17,8 +17,6 @@
 % @fb-only: -oncall("whatsapp_server_devx").
 -compile(warn_missing_spec_all).
 
--include_lib("kernel/include/logger.hrl").
-
 -export([
     blame/2,
     pp_blame/3,
@@ -26,6 +24,8 @@
 ]).
 
 -export([format_blame/2, format_error/2]).
+
+-include_lib("kernel/include/logger.hrl").
 
 -type stacktrace() :: [dynamic()].
 -type stacktrace_extrainfo() ::

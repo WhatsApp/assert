@@ -16,8 +16,6 @@
 %% erlfmt:ignore
 % @fb-only: -oncall("whatsapp_server_devx").
 
--include_lib("assert/include/assert.hrl").
-
 %% Test server callbacks
 -export([
     all/0
@@ -42,6 +40,8 @@
     badmatch_record_expr_non_exhaustive/1,
     format_error/1
 ]).
+
+-include_lib("assert/include/assert.hrl").
 
 -define(BLAME(CALL),
     try

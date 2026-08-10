@@ -17,8 +17,6 @@
 % @fb-only: -oncall("whatsapp_server_devx").
 -compile(warn_missing_spec_all).
 
--include_lib("kernel/include/logger.hrl").
-
 %% Public API
 -export([
     error_info/3,
@@ -35,6 +33,8 @@
 -export([glue/3, join_docs/2]).
 
 -export_type([supported_input/0, diff/0, side/0]).
+
+-include_lib("kernel/include/logger.hrl").
 
 -type diff() :: {eq, supported_input()} | {diff, side(), side()}.
 -type side() ::
