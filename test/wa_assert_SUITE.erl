@@ -202,7 +202,7 @@ assert_not_comparison_error_info(_Config) ->
         ?assertNot(X > Y)
     catch
         error:{assert, Props}:Stacktrace ->
-            ?assertEqual(false, proplists:get_value(expected, Props)),
+            ?assertNot(proplists:get_value(expected, Props)),
             [{_M, _F, _Args, Info} | _] = Stacktrace,
             ErrorInfo = proplists:get_value(error_info, Info),
             #{cause := Cause, module := wa_assert, function := format_comparison_error} = ErrorInfo,
@@ -213,7 +213,7 @@ assert_not_comparison_error_info(_Config) ->
         ?assertNot(length(Items) =:= 3)
     catch
         error:{assert, Props2}:Stacktrace2 ->
-            ?assertEqual(false, proplists:get_value(expected, Props2)),
+            ?assertNot(proplists:get_value(expected, Props2)),
             Intermediates = get_intermediates(Stacktrace2),
             ?assert(has_intermediate("length(Items)", Intermediates)),
             ?assertEqual(3, get_intermediate("length(Items)", Intermediates))
@@ -552,7 +552,7 @@ assert_excludes_local_bindings(_Config) ->
             Intermediates1 = get_intermediates(Stacktrace1),
             ?assertEqual(1, length(Intermediates1)),
             ?assert(has_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1)),
-            ?assertEqual(false, get_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1))
+            ?assertNot(get_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1))
     end,
     %% List comprehension bodies excluded
     Items2 = [1, 2, 3],
