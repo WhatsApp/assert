@@ -121,9 +121,12 @@ rewrite_erlang_error(Anno, Expr, ErrorInfoCall) ->
             case erl_syntax_lib:analyze_application(Expr) of
                 {erlang, {error, 1}} ->
                     [ErrorTuple] = erl_syntax:application_arguments(Expr),
-                    ?call(Anno, erlang, error, [
-                        erl_syntax:revert(ErrorTuple), {atom, Anno, none}, erl_syntax:revert(ErrorInfoCall)
-                    ]);
+                    ?call(
+                        Anno,
+                        erlang,
+                        error,
+                        [erl_syntax:revert(ErrorTuple), {atom, Anno, none}, erl_syntax:revert(ErrorInfoCall)]
+                    );
                 _ ->
                     Expr
             end;
