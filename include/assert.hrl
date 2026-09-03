@@ -20,6 +20,38 @@
 
 -include_lib("stdlib/include/assert.hrl").
 
+%%--------------------------------------------------------------------
+%% Argument order: expected/pattern first
+%%
+%% For the equality and match macros below -- ?assertEqual,
+%% ?assertMatch, ?assertNotMatch and ?assertEqualSorted -- argument 1
+%% is the EXPECTED value (or PATTERN) and argument 2 is the
+%% EXPRESSION UNDER TEST.
+%%
+%% This is a contract, not a style preference, though the consequence
+%% of getting it wrong differs between the two families:
+%%
+%%   * ?assertEqual / ?assertEqualSorted compare with =:=, which is
+%%     symmetric, so a transposed call passes and fails identically.
+%%     The failure report labels argument 1 as `expected`, so the
+%%     mistake stays invisible until a test breaks -- at which point
+%%     the report blames the expected value for the observed
+%%     behaviour and vice versa.
+%%
+%%   * ?assertMatch / ?assertNotMatch match argument 2 against
+%%     argument 1 as an Erlang pattern (`case (Expr) of Pattern`), so
+%%     the report labels argument 1 as `pattern`. Matching is
+%%     asymmetric: swapping the arguments is not merely a mislabelled
+%%     report. Unbound variables in a pattern bind rather than
+%%     compare, so a transposed call can change what the assertion
+%%     means or fail to compile.
+%%
+%%     ?assertEqual(<<"expected">>, mod:fun_under_test(Input))
+%%
+%% The Numeric Comparison macros further down use the opposite order,
+%% deliberately; see the note on that block.
+%%--------------------------------------------------------------------
+
 -undef(assertEqual).
 -define(assertEqual(Expect, Expr), begin
     ((fun() ->
@@ -320,6 +352,13 @@ end).
 %% These macros wrap common comparison patterns, for discoverability,
 %% clear intent, and readability. They delegate to ?assert to preserve
 %% its enhanced error messages.
+%%
+%% Argument order here is the REVERSE of ?assertEqual above: the value
+%% under test comes first and the threshold second, so that the call
+%% reads as the inequality it asserts (?assertGreaterThan(Count, 0) is
+%% `Count > 0`). Unlike ?assertEqual these comparisons are asymmetric,
+%% so a transposed call does not merely mislabel the report -- it
+%% asserts the opposite inequality.
 %%--------------------------------------------------------------------
 
 %% Asserts that Value is strictly greater than Threshold.
@@ -388,6 +427,8 @@ end).
 
 %% Asserts that Expected and Actual are within Delta of each other.
 %% Useful for floating-point comparisons or approximate equality checks.
+%% Being an equality check, this one is expected-first again, like
+%% ?assertEqual -- not value-first like the comparisons above.
 %% Example: ?assertEqualWithDelta(3.141, calculate_pi(), 0.001)
 %%
 %% Note: Parentheses around Expected and Actual are required to handle
