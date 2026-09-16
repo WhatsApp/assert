@@ -141,6 +141,8 @@ blame_clause(Clause, Args) ->
 
 -spec blame_patterns([tree()], [term()]) -> {[pattern_info()], bindings()}.
 blame_patterns(Patterns, Args) ->
+    % @fb-only: % `wa_lists` lives in the separate `wa_util` app, and `assert` ships to Hex on its own.
+    % @fb-only: % elp:ignore WA041 (unnecessary_zip_before_iteration)
     {Info, Binding} = lists:foldl(
         fun({Pattern, Arg}, {Info0, Bindings0}) ->
             {PatternInfo, Bindings} = blame_pattern(Pattern, Arg, Bindings0),
