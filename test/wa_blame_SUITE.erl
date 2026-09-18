@@ -92,8 +92,10 @@ function_clause(_Config) ->
 
 function_clause_multiple_args(_Config) ->
     ?assertEqual(
-        {ok, "(-1-)\n(-3-)"},
-        ?BLAME(helper(42))
+        {ok,
+            "(1, -2-, 3)\n"
+            "(-a-, -2-, -c-)"},
+        ?BLAME(helper3(1, x, 3))
     ).
 
 function_clause_binding(_Config) ->
@@ -212,6 +214,9 @@ helper(3) -> ok.
 helper(1, one) -> ok;
 helper(2, two) -> ok;
 helper(3, three) -> ok.
+
+helper3(1, 2, 3) -> ok;
+helper3(a, 2, c) -> ok.
 
 helper_with_binding(X, X) -> ok;
 helper_with_binding(X, Y) when is_list(X), is_list(Y) -> ok.
