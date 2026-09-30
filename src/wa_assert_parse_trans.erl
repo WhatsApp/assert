@@ -154,13 +154,9 @@ process_expand_assert([Expr]) ->
 -spec get_line(tree()) -> non_neg_integer().
 get_line(Expr) ->
     Anno = erl_syntax:get_pos(Expr),
-    case Anno of
-        N when is_integer(N) -> N;
-        _ ->
-            case erl_anno:is_anno(Anno) of
-                true -> erl_anno:line(Anno);
-                false -> 0
-            end
+    case erl_anno:is_anno(Anno) of
+        true -> erl_anno:line(Anno);
+        false -> 0
     end.
 
 -spec expand_comparison(tree(), tree(), [tree()], non_neg_integer()) -> tree().

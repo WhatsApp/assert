@@ -9,14 +9,17 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-22.04, macos-latest]
+        otp-version: [27, 28, 29]
         include:
-          - os: ubuntu-22.04
-            otp-version: 27
+          - otp-version: 27
             rebar3-version: 3.24.0
-          - os: macos-latest
-            otp-version: 27
-            rebar3-version: 3.24.0
+          - otp-version: 28
+            rebar3-version: 3.27.0
+          - otp-version: 29
+            rebar3-version: 3.27.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -44,8 +47,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/rebar3/rebar3_*.plt
-          key: ${{ runner.os }}-dialyzer-${{ hashFiles(format('{0}{1}', github.workspace, '/rebar.config')) }}
+          key: ${{ runner.os }}-otp-${{ matrix.otp-version }}-dialyzer-${{ hashFiles(format('{0}{1}', github.workspace, '/rebar.config')) }}
           restore-keys: |
-            ${{ runner.os }}-dialyzer-
+            ${{ runner.os }}-otp-${{ matrix.otp-version }}-dialyzer-
       - name: Dialyzer
         run: rebar3 dialyzer
