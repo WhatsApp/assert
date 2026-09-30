@@ -45,8 +45,8 @@
     | {struct_type(), meta(), [struct_arg()]}
     | struct_item()
     | {eq, supported_input()}.
-%% A struct (map/record) carries either a `{Key, ValueSide}` pair for keys
-%% present on both sides, or a whole-item `block()` for keys present on one side.
+%% A struct (map/record) carries either a {Key, ValueSide} pair for keys
+%% present on both sides, or a whole-item block() for keys present on one side.
 -type struct_arg() :: {supported_input(), side()} | block().
 -type contents() :: #{contents := [content()]}.
 -type content() :: {boolean(), binary()}.
