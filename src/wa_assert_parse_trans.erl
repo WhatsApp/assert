@@ -497,7 +497,8 @@ extract_pins(Anno, Expr) ->
     Attrs = erl_syntax:get_ann(Expr),
     pins(Anno, Attrs).
 
--spec pins(erl_anno:anno() | erl_anno:location(), dynamic()) -> [tuple()].
+-spec pins(erl_anno:anno() | erl_anno:location(), dynamic()) ->
+    [{map_field_assoc, erl_anno:anno(), {atom, erl_anno:anno(), atom()}, {var, erl_anno:anno(), atom()}}].
 pins(Anno, Attrs) ->
     {free, Free} = lists:keyfind(free, 1, Attrs),
     {env, Env} = lists:keyfind(env, 1, Attrs),

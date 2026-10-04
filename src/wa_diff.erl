@@ -121,7 +121,7 @@ records(Module) ->
             #{}
     end.
 
--spec parse_def(dynamic(), #{{atom(), pos_integer()} => [atom()]}) ->
+-spec parse_def({atom(), [erl_parse:af_field_decl()]}, #{{atom(), pos_integer()} => [atom()]}) ->
     #{{atom(), pos_integer()} => [atom()]}.
 parse_def({Name, Fields}, Acc) ->
     Acc#{{Name, length(Fields)} => [parse_def_field(F) || F <- Fields]}.
