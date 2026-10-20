@@ -473,7 +473,7 @@ assert_intermediates_capture(_Config) ->
     catch
         error:{assert, _}:Stacktrace1 ->
             Intermediates1 = get_intermediates(Stacktrace1),
-            ?assertEqual(1, length(Intermediates1)),
+            ?assertMatch([_], Intermediates1),
             ?assert(lists:member(600.0, intermediate_values(Intermediates1))),
             [{Key1, _}] = Intermediates1,
             ?assertEqual("Size1 * 0.6", Key1),
@@ -550,7 +550,7 @@ assert_excludes_local_bindings(_Config) ->
     catch
         error:{assert, _}:Stacktrace1 ->
             Intermediates1 = get_intermediates(Stacktrace1),
-            ?assertEqual(1, length(Intermediates1)),
+            ?assertMatch([_], Intermediates1),
             ?assert(has_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1)),
             ?assertNot(get_intermediate("lists:any(fun (X) -> X * 2 > 10 end, Items1)", Intermediates1))
     end,
@@ -561,7 +561,7 @@ assert_excludes_local_bindings(_Config) ->
     catch
         error:{assert, _}:Stacktrace2 ->
             Intermediates2 = get_intermediates(Stacktrace2),
-            ?assertEqual(1, length(Intermediates2)),
+            ?assertMatch([_], Intermediates2),
             ?assertEqual(12, get_intermediate("lists:sum([X * 2 || X <- Items2])", Intermediates2))
     end.
 
@@ -589,7 +589,7 @@ assert_multiple_identical_calls(_Config) ->
     catch
         error:{assert, _}:Stacktrace ->
             ?assertEqual(2, get(call_count)),
-            ?assertEqual(2, length(get_intermediates(Stacktrace)))
+            ?assertMatch([_, _], get_intermediates(Stacktrace))
     end.
 
 %% Intermediates on both sides of comparison get unique variables.
@@ -601,7 +601,7 @@ assert_counter_chaining_across_comparison(_Config) ->
         error:{assert, _}:Stacktrace ->
             Intermediates = get_intermediates(Stacktrace),
             ?assertEqual(2, get(call_count)),
-            ?assertEqual(2, length(Intermediates)),
+            ?assertMatch([_, _], Intermediates),
             Values = intermediate_values(Intermediates),
             ?assert(lists:member(5, Values)),
             ?assert(lists:member(10, Values))
