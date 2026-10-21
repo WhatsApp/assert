@@ -143,7 +143,7 @@ assert_not_match(_Config) ->
                 ErrorInfo = proplists:get_value(error_info, Info),
                 #{cause := Cause} = ErrorInfo,
                 #{pins := Pins} = Cause,
-                ?assertEqual(24, maps:get('Expected', Pins)),
+                ?assertMatch(#{'Expected' := 24}, Pins),
                 ok
         end
     end)(),
@@ -170,8 +170,8 @@ assert_not_match(_Config) ->
                 ErrorInfo2 = proplists:get_value(error_info, Info2),
                 #{cause := Cause2} = ErrorInfo2,
                 #{pins := Pins2} = Cause2,
-                ?assertEqual(error, maps:get('Status', Pins2)),
-                ?assertEqual(404, maps:get('Code', Pins2)),
+                ?assertMatch(#{'Status' := error}, Pins2),
+                ?assertMatch(#{'Code' := 404}, Pins2),
                 ok
         end
     end)().
