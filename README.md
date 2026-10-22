@@ -42,7 +42,7 @@ b() ->
 ```
 
 Let's compile run the code:
-```
+```text
 > c(assert_sample).
 > assert_sample:assert().
 ```
@@ -58,7 +58,7 @@ Let's replace the `-include_lib` directive to use the `assert` library instead:
 ```
 
 And run the code again:
-```
+```text
 > c(assert_sample).
 > assert_sample:assert().
 ```
@@ -138,7 +138,7 @@ We can intercept the error via a `try/catch` and enhance it via `wa_blame`:
 ### In a rebar3 Project
 To add `assert` to your rebar3 project, simply add it to the `deps` in your `rebar.config`:
 
-```
+```text
 {deps, [
   {assert, {git, "http://github.com/whatsapp/assert.git"}}
 ]}.
