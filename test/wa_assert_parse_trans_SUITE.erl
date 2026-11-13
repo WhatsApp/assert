@@ -54,16 +54,23 @@ parse_transform_expand_assert(Config) ->
 %% Internal Helpers
 %%--------------------------------------------------------------------
 
+-spec file_path(Name, Config) -> file:filename() when
+    Name :: string(),
+    Config :: ct_suite:ct_config().
 file_path(Name, Config) ->
     DataDir = proplists:get_value(data_dir, Config),
     filename:join([DataDir, Name]).
 
+-spec assert_parse_transform(Source, Expected0) -> ok when
+    Source :: file:filename(),
+    Expected0 :: file:filename().
 assert_parse_transform(Source, Expected0) ->
     AST = compile(Source),
     Pretty = string:join([erl_prettypr:format(Tree) || Tree <- AST], "\n"),
     {ok, Expected} = file:read_file(Expected0),
     ?assertEqual(Expected, unicode:characters_to_binary(Pretty)).
 
+-spec compile(File) -> [erl_parse:abstract_form()] when File :: file:filename().
 compile(File) ->
     {ok, [], AST} = compile:file(File, [binary, deterministic, 'P']),
     AST.

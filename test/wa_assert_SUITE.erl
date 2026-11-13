@@ -931,48 +931,72 @@ assert_match_expr_with_bindings(_Config) ->
 %%--------------------------------------------------------------------
 %% Internal Helpers
 %%--------------------------------------------------------------------
+-spec actual() -> integer().
 actual() -> 42.
+-spec expected() -> integer().
 expected() -> 24.
 
+-spec actual(X) -> A when X :: A.
 actual(X) -> X.
 
+-spec actual_list() -> [integer()].
 actual_list() -> [1, 2, 3, 4, 5].
+-spec expected_list() -> [integer()].
 expected_list() -> [1, 5, 3, 2, 4].
 
+-spec counted_val(X) -> A when X :: A.
 counted_val(X) ->
     put(call_count, get(call_count) + 1),
     X.
 
+-spec impure_counter() -> integer().
 impure_counter() ->
     Count = get(call_count) + 1,
     put(call_count, Count),
     Count.
 
+-spec inner(X) -> A when X :: A.
 inner(X) -> X.
+-spec middle(X) -> A when X :: A.
 middle(X) -> X.
+-spec outer(X) -> A when X :: A.
 outer(X) -> X.
 
+-spec foo(X) -> A when X :: A.
 foo(X) -> X.
+-spec bar(X) -> A when X :: A.
 bar(X) -> X.
+-spec baz(X) -> A when X :: A.
 baz(X) -> X.
 
+-spec crash_divisor(X) -> integer() when X :: [integer()].
 crash_divisor(X) -> length(X) - 3.
 
+%% The value stays term() because wa_assert's intermediates() alias is module-private and cannot be named here.
+-spec get_intermediates(Stacktrace) -> [{string(), term()}] when Stacktrace :: erlang:stacktrace().
 get_intermediates(Stacktrace) ->
     [{_M, _F, _Args, Info} | _] = Stacktrace,
     ErrorInfo = proplists:get_value(error_info, Info),
     #{cause := Cause} = ErrorInfo,
     maps:get(intermediates, Cause, []).
 
+-spec get_intermediate(Key, Intermediates) -> term() when
+    Key :: string(),
+    Intermediates :: [{string(), term()}].
 get_intermediate(Key, Intermediates) ->
     proplists:get_value(Key, Intermediates).
 
+-spec has_intermediate(Key, Intermediates) -> boolean() when
+    Key :: string(),
+    Intermediates :: [{string(), term()}].
 has_intermediate(Key, Intermediates) ->
     proplists:is_defined(Key, Intermediates).
 
+-spec intermediate_values(Intermediates) -> [term()] when Intermediates :: [{string(), term()}].
 intermediate_values(Intermediates) ->
     [V || {_, V} <- Intermediates].
 
+-spec chardata_to_list(CharData) -> string() when CharData :: unicode:chardata().
 chardata_to_list(CharData) ->
     case unicode:characters_to_list(CharData) of
         List when is_list(List) -> List;

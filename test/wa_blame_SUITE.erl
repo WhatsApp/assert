@@ -239,6 +239,7 @@ helper_map(#{a := _}) -> ok.
 
 helper_map_2(#{a := _, b := 3}) -> ok.
 
+-spec attempt_error_info(Fun) -> A when Fun :: fun(() -> A).
 attempt_error_info(Fun) ->
     try
         Fun()
@@ -252,6 +253,7 @@ attempt_error_info(Fun) ->
             end
     end.
 
+-spec attempt_format_error(Fun) -> A | string() when Fun :: fun(() -> A).
 attempt_format_error(Fun) ->
     try
         Fun()
