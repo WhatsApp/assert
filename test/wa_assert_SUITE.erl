@@ -29,6 +29,9 @@
     assert_not_match/1,
     assert_comparison/1,
     assert_map_comprehension/1,
+    assert_multi_value_list_comprehension/1,
+    assert_multi_value_map_comprehension/1,
+    assert_nested_multi_value_comprehension/1,
     assert_call_with_bindings/1,
     assert_not_comparison_error_info/1,
     assert_greater_than/1,
@@ -77,6 +80,9 @@ all() ->
         assert_not_match,
         assert_comparison,
         assert_map_comprehension,
+        assert_multi_value_list_comprehension,
+        assert_multi_value_map_comprehension,
+        assert_nested_multi_value_comprehension,
         assert_call_with_bindings,
         assert_not_comparison_error_info,
         assert_greater_than,
@@ -190,6 +196,66 @@ assert_map_comprehension(_Config) ->
             #{xy => {X, Y} || X <- []} < 42
         )
     ).
+
+assert_multi_value_list_comprehension(_Config) ->
+    Xs = [1, 2],
+    Offset = 10,
+    Expected = [1, 11, 2, 12],
+    ?assertEqual(Expected, [X, X + Offset || X <:- Xs]),
+    ?assertEqual([], [X, X + Offset || X <:- [], X > 0]),
+    Cause =
+        try
+            ?assert([X, X + Offset || X <:- Xs] =:= []),
+            error(expected_assertion_failure)
+        catch
+            error:{assert, _}:Stacktrace ->
+                [{_, _, _, Info} | _] = Stacktrace,
+                #{cause := ErrorCause} = proplists:get_value(error_info, Info),
+                ErrorCause
+        end,
+    ?assertEqual(#{'Xs' => Xs, 'Offset' => Offset}, maps:get(pins, Cause)),
+    ?assertEqual(Expected, maps:get(left, Cause)),
+    ?assertEqual([], maps:get(intermediates, Cause, [])).
+
+assert_multi_value_map_comprehension(_Config) ->
+    Input = #{1 => 2, 3 => 4},
+    Offset = 10,
+    Expected = #{1 => 2, {tag, 1} => 12, 3 => 4, {tag, 3} => 14},
+    ?assertEqual(Expected, #{K => V, {tag, K} => V + Offset || K := V <:- Input}),
+    ?assertEqual(Input, #{K => V + Offset, K => V || K := V <:- Input}),
+    Cause =
+        try
+            ?assert(#{K => V, {tag, K} => V + Offset || K := V <:- Input} =:= #{}),
+            error(expected_assertion_failure)
+        catch
+            error:{assert, _}:Stacktrace ->
+                [{_, _, _, Info} | _] = Stacktrace,
+                #{cause := ErrorCause} = proplists:get_value(error_info, Info),
+                ErrorCause
+        end,
+    ?assertEqual(#{'Input' => Input, 'Offset' => Offset}, maps:get(pins, Cause)),
+    ?assertEqual(Expected, maps:get(left, Cause)),
+    ?assertEqual([], maps:get(intermediates, Cause, [])).
+
+assert_nested_multi_value_comprehension(_Config) ->
+    ?assertEqual(
+        [2, [22, 2]],
+        [
+            begin
+                ?assert(X > 0),
+                X
+            end,
+            begin
+                Head = X + Offset,
+                ?assertMatch(Head, Y),
+                [Head, Z || Z <:- [X]]
+            end
+         || X <:- [1, 2] && Offset <:- [10, 20], Y <:- [X + Offset], X > 1
+        ]
+    ),
+    ?assertEqual([1, 2], [X, X + 1 || {value, X} <- [skip, {value, 1}]]),
+    X = 42,
+    ?assert(X =:= 42).
 
 assert_call_with_bindings(_Config) ->
     Expected = expected(),

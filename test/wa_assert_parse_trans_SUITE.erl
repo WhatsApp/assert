@@ -25,7 +25,8 @@
 %% Test cases
 -export([
     parse_transform_assert_match/1,
-    parse_transform_expand_assert/1
+    parse_transform_expand_assert/1,
+    parse_transform_multi_value_comprehensions/1
 ]).
 
 -include_lib("assert/include/assert.hrl").
@@ -34,7 +35,8 @@
 all() ->
     [
         parse_transform_assert_match,
-        parse_transform_expand_assert
+        parse_transform_expand_assert,
+        parse_transform_multi_value_comprehensions
     ].
 
 %%--------------------------------------------------------------------
@@ -49,6 +51,16 @@ parse_transform_expand_assert(Config) ->
     Source = file_path("expand_assert.erl", Config),
     Expected = file_path("expand_assert.expected", Config),
     assert_parse_transform(Source, Expected).
+
+parse_transform_multi_value_comprehensions(_Config) ->
+    Source =
+        "comprehensions(Xs) -> "
+        "{[X, X + 1 || X <:- Xs], "
+        "#{X => X, {next, X} => X + 1 || X <:- Xs}, "
+        "[X || X <:- Xs], #{X => X || X <:- Xs}}.",
+    {ok, Tokens, _} = erl_scan:string(Source),
+    {ok, Form} = erl_parse:parse_form(Tokens),
+    ?assertEqual([Form], wa_assert_parse_trans:parse_transform([Form], [])).
 
 %%--------------------------------------------------------------------
 %% Internal Helpers

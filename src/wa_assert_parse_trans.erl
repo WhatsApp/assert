@@ -44,14 +44,47 @@ parse_transform(Forms, _Options) ->
 transform_form(Form) ->
     case erl_syntax:type(Form) of
         function ->
-            Annotated = erl_syntax_lib:annotate_bindings(Form, ordsets:new()),
+            Normalized = erl_syntax_lib:map(fun wrap_comprehension_template/1, Form),
+            Annotated = erl_syntax_lib:annotate_bindings(Normalized, ordsets:new()),
             try
-                erl_syntax:revert(erl_syntax_lib:map(fun transform_expr/1, Annotated))
+                erl_syntax:revert(
+                    erl_syntax_lib:map(
+                        fun(Expr) -> transform_expr(restore_comprehension_template(Expr)) end,
+                        Annotated
+                    )
+                )
             catch
                 {error_marker, Line, Reason} -> {error, {erl_anno:location(Line), ?MODULE, Reason}}
             end;
         _ ->
             Form
+    end.
+
+-spec wrap_comprehension_template(tree()) -> tree().
+wrap_comprehension_template(Expr) ->
+    case erl_syntax:type(Expr) of
+        Type when Type =:= list_comp; Type =:= map_comp ->
+            case erl_syntax:subtrees(Expr) of
+                [[_, _ | _] = Templates, Body] ->
+                    Wrapped = erl_syntax:update_tree(Expr, [[erl_syntax:tuple(Templates)], Body]),
+                    erl_syntax:add_ann({?MODULE, multi_value_template}, Wrapped);
+                _ ->
+                    Expr
+            end;
+        _ ->
+            Expr
+    end.
+
+-spec restore_comprehension_template(tree()) -> tree().
+restore_comprehension_template(Expr) ->
+    Ann = erl_syntax:get_ann(Expr),
+    case lists:member({?MODULE, multi_value_template}, Ann) of
+        true ->
+            [[Template], Body] = erl_syntax:subtrees(Expr),
+            Restored = erl_syntax:update_tree(Expr, [erl_syntax:tuple_elements(Template), Body]),
+            erl_syntax:set_ann(Restored, lists:delete({?MODULE, multi_value_template}, Ann));
+        false ->
+            Expr
     end.
 
 -spec transform_expr(tree()) -> tree().
