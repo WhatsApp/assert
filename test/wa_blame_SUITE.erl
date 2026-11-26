@@ -208,24 +208,30 @@ format_error(_Config) ->
 %%--------------------------------------------------------------------
 %% Internal Helpers
 %%--------------------------------------------------------------------
+-spec helper(integer()) -> ok.
 helper(1) -> ok;
 helper(3) -> ok.
 
+-spec helper(integer(), atom()) -> ok.
 helper(1, one) -> ok;
 helper(2, two) -> ok;
 helper(3, three) -> ok.
 
+-spec helper3(integer() | atom(), integer() | atom(), integer() | atom()) -> ok.
 helper3(1, 2, 3) -> ok;
 helper3(a, 2, c) -> ok.
 
+-spec helper_with_binding(integer() | [term()], integer() | [term()]) -> ok.
 helper_with_binding(X, X) -> ok;
 helper_with_binding(X, Y) when is_list(X), is_list(Y) -> ok.
 
+-spec helper_with_guards({integer() | [term()], integer() | [term()]} | {integer(), integer(), integer()}) -> ok.
 helper_with_guards({X, Y}) when is_integer(X), is_list(Y) -> ok;
 helper_with_guards({X, Y}) when is_list(X), is_integer(Y) -> ok;
 helper_with_guards({X, Y, Z}) when is_integer(X), is_integer(Y), is_integer(Z) -> ok;
 helper_with_guards({X, Y}) when is_list(X), is_list(Y) -> ok.
 
+-spec helper_mixed_guards({term(), term()}) -> ok.
 helper_mixed_guards({X, X}) ->
     ok;
 helper_mixed_guards({X, Y}) when
@@ -235,8 +241,10 @@ helper_mixed_guards({X, Y}) when
     ok;
 helper_mixed_guards({X, Y}) when is_integer(X), X > 0; is_integer(Y) -> ok.
 
+-spec helper_map(#{atom() => integer()}) -> ok.
 helper_map(#{a := _}) -> ok.
 
+-spec helper_map_2(#{atom() => integer()}) -> ok.
 helper_map_2(#{a := _, b := 3}) -> ok.
 
 -spec attempt_error_info(Fun) -> A when Fun :: fun(() -> A).
